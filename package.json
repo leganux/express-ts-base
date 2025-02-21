@@ -6,11 +6,15 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
-    "build": "tsc"
+    "build": "tsc",
+    "swagger:generate": "bun run src/scripts/generate-swagger.ts",
+    "swagger:watch": "bun --watch run src/scripts/generate-swagger.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",
     "@aws-sdk/client-ses": "^3.750.0",
+    "@types/swagger-jsdoc": "^6.0.4",
+    "@types/swagger-ui-express": "^4.1.8",
     "apiato": "^3.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -22,6 +26,8 @@
     "morgan": "^1.10.0",
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.10.0",
+    "swagger-jsdoc": "^6.2.8",
+    "swagger-ui-express": "^5.0.1",
     "winston": "^3.17.0"
   },
   "devDependencies": {

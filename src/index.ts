@@ -2,6 +2,8 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import path from 'path';
+import swaggerUi from 'swagger-ui-express';
+import { swaggerSpec } from './config/swagger';
 import userRoutes from './modules/users/routes';
 import authRoutes from './modules/auth/routes';
 import fileRoutes from './modules/files/routes';
@@ -22,6 +24,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Swagger documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
 // Request logging middleware
 app.use((req: Request, _res: Response, next: NextFunction) => {
   logger.debug(`Incoming ${req.method} request to ${req.path}`);
@@ -29,11 +34,11 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/users', userRoutes);
-app.use('/api/files', fileRoutes);
-app.use('/api/email', emailRoutes);
+// Routes with v1 prefix
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/users', userRoutes);
+app.use('/api/v1/files', fileRoutes);
+app.use('/api/v1/email', emailRoutes);
 
 // Firebase Config Route
 app.get('/config', (_req: Request, res: Response) => {
@@ -77,34 +82,35 @@ if (config.FILE_STORAGE_TYPE === 'local') {
 connectDB().then(() => {
   app.listen(config.PORT, () => {
     logger.info(`Server is running in ${config.NODE_ENV} mode on port ${config.PORT}`);
-    logger.info(`Test the API: curl http://localhost:${config.PORT}/test`);
+    logger.info(`API Documentation: http://localhost:${config.PORT}/api-docs`);
     
     // Log available endpoints
     logger.info('Available endpoints:');
     logger.info('Authentication:');
-    logger.info('  POST /api/auth/register');
-    logger.info('  POST /api/auth/login');
-    logger.info('  POST /api/auth/google');
-    logger.info('  POST /api/auth/reset-password');
-    logger.info('  GET  /api/auth/verify');
-    logger.info('  POST /api/auth/set-role (Admin only)');
+    logger.info('  POST /api/v1/auth/register');
+    logger.info('  POST /api/v1/auth/login');
+    logger.info('  POST /api/v1/auth/google');
+    logger.info('  POST /api/v1/auth/reset-password');
+    logger.info('  GET  /api/v1/auth/verify');
+    logger.info('  POST /api/v1/auth/set-role (Admin only)');
     
     logger.info('Files:');
-    logger.info('  POST /api/files/single');
-    logger.info('  POST /api/files/many');
-    logger.info('  DELETE /api/files/:filepath');
+    logger.info('  POST /api/v1/files/single');
+    logger.info('  POST /api/v1/files/many');
+    logger.info('  DELETE /api/v1/files/:filepath');
+    logger.info('  GET /api/v1/files/view/:id');
     
     logger.info('Email:');
-    logger.info('  POST /api/email/send');
-    logger.info('  POST /api/email/send-template');
-    logger.info('  POST /api/email/send-with-attachment');
+    logger.info('  POST /api/v1/email/send');
+    logger.info('  POST /api/v1/email/send-template');
+    logger.info('  POST /api/v1/email/send-with-attachment');
     
     logger.info('Users:');
-    logger.info('  GET  /api/users');
-    logger.info('  GET  /api/users/me');
-    logger.info('  GET  /api/users/:id');
-    logger.info('  PUT  /api/users/me');
-    logger.info('  DELETE /api/users/:id');
+    logger.info('  GET  /api/v1/users');
+    logger.info('  GET  /api/v1/users/me');
+    logger.info('  GET  /api/v1/users/:id');
+    logger.info('  PUT  /api/v1/users/me');
+    logger.info('  DELETE /api/v1/users/:id');
   });
 }).catch(error => {
   logger.error('Failed to start server:', error);

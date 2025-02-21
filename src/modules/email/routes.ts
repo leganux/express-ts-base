@@ -5,7 +5,43 @@ import { logger } from '../../utils/logger';
 
 const router = Router();
 
-// Send email
+/**
+ * @swagger
+ * /api/v1/email/send:
+ *   post:
+ *     tags:
+ *       - Email
+ *     summary: Send a simple email
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - to
+ *               - subject
+ *               - content
+ *             properties:
+ *               to:
+ *                 type: string
+ *                 format: email
+ *               subject:
+ *                 type: string
+ *               content:
+ *                 type: string
+ *               title:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Email sent successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ */
 router.post('/send', 
   validateFirebaseToken,
   async (req: AuthRequest, res) => {
@@ -57,7 +93,43 @@ router.post('/send',
   }
 );
 
-// Send email with template
+/**
+ * @swagger
+ * /api/v1/email/send-template:
+ *   post:
+ *     tags:
+ *       - Email
+ *     summary: Send an email using a template
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - to
+ *               - subject
+ *               - templatePath
+ *             properties:
+ *               to:
+ *                 type: string
+ *                 format: email
+ *               subject:
+ *                 type: string
+ *               templatePath:
+ *                 type: string
+ *               context:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Email sent successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ */
 router.post('/send-template',
   validateFirebaseToken,
   async (req: AuthRequest, res) => {
@@ -114,7 +186,53 @@ router.post('/send-template',
   }
 );
 
-// Send email with attachment
+/**
+ * @swagger
+ * /api/v1/email/send-with-attachment:
+ *   post:
+ *     tags:
+ *       - Email
+ *     summary: Send an email with attachments
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - to
+ *               - subject
+ *               - content
+ *               - attachments
+ *             properties:
+ *               to:
+ *                 type: string
+ *                 format: email
+ *               subject:
+ *                 type: string
+ *               content:
+ *                 type: string
+ *               title:
+ *                 type: string
+ *               attachments:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     filename:
+ *                       type: string
+ *                     path:
+ *                       type: string
+ *     responses:
+ *       200:
+ *         description: Email sent successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ */
 router.post('/send-with-attachment',
   validateFirebaseToken,
   async (req: AuthRequest, res) => {

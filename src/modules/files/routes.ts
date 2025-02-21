@@ -1,16 +1,72 @@
-import { Router, Response, NextFunction } from 'express';
+import { Router } from 'express';
 import { validateFirebaseToken, AuthRequest } from '../../middleware/auth.middleware';
-import { upload, storageService } from '../../services/storage.service';
-import { logger } from '../../utils/logger';
 import multer from 'multer';
+import { join } from 'path';
+import { existsSync, unlinkSync } from 'fs';
+import { logger } from '../../utils/logger';
 
 const router = Router();
 
-// Single file upload
-router.post('/single', 
+// Configure multer for file uploads
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, file.fieldname + '-' + uniqueSuffix + '-' + file.originalname);
+  }
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    // Allow only images and PDFs
+    if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only images and PDFs are allowed.'));
+    }
+  }
+});
+
+/**
+ * @swagger
+ * /api/v1/files/single:
+ *   post:
+ *     tags:
+ *       - Files
+ *     summary: Upload a single file
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               file:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: File uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/examples/SuccessfulSingleUpload'
+ *       400:
+ *         description: Invalid file type or no file provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/examples/ErrorInvalidFileType'
+ */
+router.post('/single',
   validateFirebaseToken,
   upload.single('file'),
-  async (req: AuthRequest, res) => {
+  (req: AuthRequest, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({
@@ -22,10 +78,10 @@ router.post('/single',
         });
       }
 
-      const filepath = await storageService.handleSingleUpload(req.file);
-      logger.info('File uploaded successfully:', { 
+      logger.info('File uploaded:', {
         user: req.user?.uid,
-        filepath 
+        filename: req.file.filename,
+        size: req.file.size
       });
 
       res.json({
@@ -33,14 +89,16 @@ router.post('/single',
         success: true,
         message: 'File uploaded successfully',
         code: 200,
-        data: { filepath }
+        data: {
+          filepath: req.file.path
+        }
       });
     } catch (error) {
       logger.error('Error uploading file:', error);
       res.status(500).json({
-        error: error instanceof Error ? error.message : 'File upload failed',
+        error: error instanceof Error ? error.message : 'Failed to upload file',
         success: false,
-        message: 'Failed to upload file',
+        message: 'Internal server error',
         code: 500,
         data: {}
       });
@@ -48,13 +106,48 @@ router.post('/single',
   }
 );
 
-// Multiple files upload (max 5 files)
+/**
+ * @swagger
+ * /api/v1/files/many:
+ *   post:
+ *     tags:
+ *       - Files
+ *     summary: Upload multiple files (max 5)
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               files:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: binary
+ *     responses:
+ *       200:
+ *         description: Files uploaded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/examples/SuccessfulMultipleUpload'
+ *       400:
+ *         description: Invalid file type or no files provided
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/examples/ErrorInvalidFileType'
+ */
 router.post('/many',
   validateFirebaseToken,
   upload.array('files', 5),
-  async (req: AuthRequest, res) => {
+  (req: AuthRequest, res) => {
     try {
       const files = req.files as Express.Multer.File[];
+      
       if (!files || files.length === 0) {
         return res.status(400).json({
           error: 'No files uploaded',
@@ -65,11 +158,10 @@ router.post('/many',
         });
       }
 
-      const filepaths = await storageService.handleMultipleUploads(files);
-      logger.info('Files uploaded successfully:', {
+      logger.info('Files uploaded:', {
         user: req.user?.uid,
         count: files.length,
-        filepaths
+        sizes: files.map(f => f.size)
       });
 
       res.json({
@@ -77,14 +169,16 @@ router.post('/many',
         success: true,
         message: 'Files uploaded successfully',
         code: 200,
-        data: { filepaths }
+        data: {
+          filepaths: files.map(f => f.path)
+        }
       });
     } catch (error) {
       logger.error('Error uploading files:', error);
       res.status(500).json({
-        error: error instanceof Error ? error.message : 'Files upload failed',
+        error: error instanceof Error ? error.message : 'Failed to upload files',
         success: false,
-        message: 'Failed to upload files',
+        message: 'Internal server error',
         code: 500,
         data: {}
       });
@@ -92,15 +186,55 @@ router.post('/many',
   }
 );
 
-// Delete file
+/**
+ * @swagger
+ * /api/v1/files/{filepath}:
+ *   delete:
+ *     tags:
+ *       - Files
+ *     summary: Delete a file by filepath
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: filepath
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Path to the file to delete
+ *     responses:
+ *       200:
+ *         description: File deleted successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/examples/SuccessfulDelete'
+ *       404:
+ *         description: File not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/examples/ErrorFileNotFound'
+ */
 router.delete('/:filepath',
   validateFirebaseToken,
-  async (req: AuthRequest, res) => {
+  (req: AuthRequest, res) => {
     try {
-      const { filepath } = req.params;
-      await storageService.deleteFile(decodeURIComponent(filepath));
-      
-      logger.info('File deleted successfully:', {
+      const filepath = join('uploads', req.params.filepath);
+
+      if (!existsSync(filepath)) {
+        return res.status(404).json({
+          error: 'File not found',
+          success: false,
+          message: 'The requested file does not exist',
+          code: 404,
+          data: {}
+        });
+      }
+
+      unlinkSync(filepath);
+
+      logger.info('File deleted:', {
         user: req.user?.uid,
         filepath
       });
@@ -115,9 +249,9 @@ router.delete('/:filepath',
     } catch (error) {
       logger.error('Error deleting file:', error);
       res.status(500).json({
-        error: error instanceof Error ? error.message : 'File deletion failed',
+        error: error instanceof Error ? error.message : 'Failed to delete file',
         success: false,
-        message: 'Failed to delete file',
+        message: 'Internal server error',
         code: 500,
         data: {}
       });
@@ -125,27 +259,72 @@ router.delete('/:filepath',
   }
 );
 
-// Error handling middleware
-router.use((error: Error, _req: AuthRequest, res: Response, _next: NextFunction) => {
-  if (error instanceof multer.MulterError) {
-    logger.error('Multer error:', error);
-    return res.status(400).json({
-      error: error.message,
-      success: false,
-      message: 'File upload error',
-      code: 400,
-      data: {}
-    });
+/**
+ * @swagger
+ * /api/v1/files/view/{id}:
+ *   get:
+ *     tags:
+ *       - Files
+ *     summary: View a file by ID
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: ID of the file to view
+ *     responses:
+ *       200:
+ *         description: File content
+ *         content:
+ *           application/octet-stream:
+ *             schema:
+ *               type: string
+ *               format: binary
+ *       404:
+ *         description: File not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/examples/ErrorFileNotFound'
+ */
+router.get('/view/:id',
+  validateFirebaseToken,
+  (req: AuthRequest, res) => {
+    try {
+      const filepath = join('uploads', req.params.id);
+
+      if (!existsSync(filepath)) {
+        return res.status(404).json({
+          error: 'File not found',
+          success: false,
+          message: 'The requested file does not exist',
+          code: 404,
+          data: {}
+        });
+      }
+
+      logger.info('File viewed:', {
+        user: req.user?.uid,
+        filepath
+      });
+
+      // Set Content-Disposition to inline to display in browser
+      res.setHeader('Content-Disposition', `inline; filename="${req.params.id}"`);
+      res.sendFile(filepath, { root: '.' });
+    } catch (error) {
+      logger.error('Error viewing file:', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to view file',
+        success: false,
+        message: 'Internal server error',
+        code: 500,
+        data: {}
+      });
+    }
   }
-  
-  logger.error('Unexpected error in file routes:', error);
-  return res.status(500).json({
-    error: error.message || 'Unexpected error',
-    success: false,
-    message: 'Internal server error',
-    code: 500,
-    data: {}
-  });
-});
+);
 
 export default router;

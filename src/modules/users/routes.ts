@@ -1,195 +1,226 @@
 import { Router } from 'express';
-import { validateFirebaseToken, roleGuard, AuthRequest } from '../../middleware/auth.middleware';
-import { UserRole } from '../../config/firebase';
-import { logger } from '../../utils/logger';
-import { UserModel } from './model';
+import { validateFirebaseToken, AuthRequest } from '../../middleware/auth.middleware';
+import { userController } from './controller';
 
 const router = Router();
 
-// Get all users (Admin only)
-router.get('/', 
-  validateFirebaseToken,
-  roleGuard([UserRole.ADMIN]),
-  async (_req, res) => {
-    try {
-      const users = await UserModel.find().select('-__v');
-      res.json({
-        error: null,
-        success: true,
-        message: 'Users retrieved successfully',
-        code: 200,
-        data: users
-      });
-    } catch (error) {
-      logger.error('Error getting users:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get users',
-        success: false,
-        message: 'Internal server error',
-        code: 500,
-        data: {}
-      });
-    }
-  }
-);
+/**
+ * @swagger
+ * /api/v1/users:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get all users
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of users retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: null
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: Users retrieved successfully
+ *                 code:
+ *                   type: number
+ *                   example: 200
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       firebaseUid:
+ *                         type: string
+ *                       name:
+ *                         type: string
+ *                       email:
+ *                         type: string
+ *                       role:
+ *                         type: string
+ *                         enum: [PUBLIC, USER, ADMIN]
+ *                       emailVerified:
+ *                         type: boolean
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/', validateFirebaseToken, (req: AuthRequest, res) => {
+  return userController.getAll(req, res);
+});
 
-// Get current user profile
-router.get('/me', 
-  validateFirebaseToken,
-  (req: AuthRequest, res) => {
-    try {
-      res.json({
-        error: null,
-        success: true,
-        message: 'Profile retrieved successfully',
-        code: 200,
-        data: req.user?.dbUser
-      });
-    } catch (error) {
-      logger.error('Error getting profile:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get profile',
-        success: false,
-        message: 'Internal server error',
-        code: 500,
-        data: {}
-      });
-    }
-  }
-);
+/**
+ * @swagger
+ * /api/v1/users/me:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get current user profile
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: null
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User profile retrieved successfully
+ *                 code:
+ *                   type: number
+ *                   example: 200
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     firebaseUid:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       enum: [PUBLIC, USER, ADMIN]
+ *                     emailVerified:
+ *                       type: boolean
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/me', validateFirebaseToken, (req: AuthRequest, res) => {
+  return userController.getById(req, res);
+});
 
-// Get user by ID (Admin only)
-router.get('/:id',
-  validateFirebaseToken,
-  roleGuard([UserRole.ADMIN]),
-  async (req, res) => {
-    try {
-      const user = await UserModel.findById(req.params.id).select('-__v');
-      if (!user) {
-        return res.status(404).json({
-          error: 'User not found',
-          success: false,
-          message: 'User not found',
-          code: 404,
-          data: {}
-        });
-      }
+/**
+ * @swagger
+ * /api/v1/users/{id}:
+ *   get:
+ *     tags:
+ *       - Users
+ *     summary: Get user by ID
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: null
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: User details retrieved successfully
+ *                 code:
+ *                   type: number
+ *                   example: 200
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     firebaseUid:
+ *                       type: string
+ *                     name:
+ *                       type: string
+ *                     email:
+ *                       type: string
+ *                     role:
+ *                       type: string
+ *                       enum: [PUBLIC, USER, ADMIN]
+ *                     emailVerified:
+ *                       type: boolean
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ */
+router.get('/:id', validateFirebaseToken, (req: AuthRequest, res) => {
+  return userController.getById(req, res);
+});
 
-      res.json({
-        error: null,
-        success: true,
-        message: 'User retrieved successfully',
-        code: 200,
-        data: user
-      });
-    } catch (error) {
-      logger.error('Error getting user:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to get user',
-        success: false,
-        message: 'Internal server error',
-        code: 500,
-        data: {}
-      });
-    }
-  }
-);
+/**
+ * @swagger
+ * /api/v1/users/me:
+ *   put:
+ *     tags:
+ *       - Users
+ *     summary: Update current user profile
+ *     security:
+ *       - BearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *                 format: email
+ *     responses:
+ *       200:
+ *         description: Profile updated successfully
+ *       400:
+ *         description: Invalid input
+ *       401:
+ *         description: Unauthorized
+ */
+router.put('/me', validateFirebaseToken, (req: AuthRequest, res) => {
+  return userController.update(req, res);
+});
 
-// Update current user profile
-router.put('/me',
-  validateFirebaseToken,
-  async (req: AuthRequest, res) => {
-    try {
-      const updates = {
-        name: req.body.name,
-        photoURL: req.body.photoURL
-      };
-
-      const user = await UserModel.findOneAndUpdate(
-        { firebaseUid: req.user?.uid },
-        { $set: updates },
-        { new: true }
-      ).select('-__v');
-
-      if (!user) {
-        return res.status(404).json({
-          error: 'User not found',
-          success: false,
-          message: 'User not found',
-          code: 404,
-          data: {}
-        });
-      }
-
-      res.json({
-        error: null,
-        success: true,
-        message: 'Profile updated successfully',
-        code: 200,
-        data: user
-      });
-    } catch (error) {
-      logger.error('Error updating profile:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to update profile',
-        success: false,
-        message: 'Internal server error',
-        code: 500,
-        data: {}
-      });
-    }
-  }
-);
-
-// Delete user (Admin only)
-router.delete('/:id',
-  validateFirebaseToken,
-  roleGuard([UserRole.ADMIN]),
-  async (req: AuthRequest, res) => {
-    try {
-      const user = await UserModel.findById(req.params.id);
-      if (!user) {
-        return res.status(404).json({
-          error: 'User not found',
-          success: false,
-          message: 'User not found',
-          code: 404,
-          data: {}
-        });
-      }
-
-      // Don't allow deleting yourself
-      if (user.firebaseUid === req.user?.uid) {
-        return res.status(400).json({
-          error: 'Cannot delete yourself',
-          success: false,
-          message: 'Cannot delete your own account',
-          code: 400,
-          data: {}
-        });
-      }
-
-      await user.deleteOne();
-      logger.info('User deleted:', { deletedId: req.params.id, deletedBy: req.user?.uid });
-
-      res.json({
-        error: null,
-        success: true,
-        message: 'User deleted successfully',
-        code: 200,
-        data: {}
-      });
-    } catch (error) {
-      logger.error('Error deleting user:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to delete user',
-        success: false,
-        message: 'Internal server error',
-        code: 500,
-        data: {}
-      });
-    }
-  }
-);
+/**
+ * @swagger
+ * /api/v1/users/{id}:
+ *   delete:
+ *     tags:
+ *       - Users
+ *     summary: Delete user by ID
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ */
+router.delete('/:id', validateFirebaseToken, (req: AuthRequest, res) => {
+  return userController.delete(req, res);
+});
 
 export default router;
