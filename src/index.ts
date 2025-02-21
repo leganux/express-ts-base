@@ -78,8 +78,15 @@ if (config.FILE_STORAGE_TYPE === 'local') {
   });
 }
 
-// Connect to MongoDB and start server
-connectDB().then(() => {
+// Import plugin loader
+import PluginLoader from './utils/plugin-loader';
+
+// Connect to MongoDB, load plugins and start server
+connectDB().then(async () => {
+  // Initialize and load plugins
+  const pluginLoader = PluginLoader.getInstance();
+  await pluginLoader.loadPlugins(app);
+  
   app.listen(config.PORT, () => {
     logger.info(`Server is running in ${config.NODE_ENV} mode on port ${config.PORT}`);
     logger.info(`API Documentation: http://localhost:${config.PORT}/api-docs`);

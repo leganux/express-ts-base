@@ -1,0 +1,18 @@
+{
+  "openpay": {
+    "name": "openpay",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "sandbox": true
+    }
+  },
+  "mercadopago": {
+    "name": "mercadopago",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "sandbox": true
+    }
+  }
+}

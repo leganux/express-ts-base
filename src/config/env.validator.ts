@@ -31,6 +31,12 @@ export interface EnvConfig {
   SMTP_PASS?: string;
   EMAIL_FROM: string;
   AWS_SES_REGION: string;
+  // Payment Plugin Configuration
+  OPENPAY_MERCHANT_ID?: string;
+  OPENPAY_PRIVATE_KEY?: string;
+  OPENPAY_SANDBOX?: string;
+  MERCADOPAGO_ACCESS_TOKEN?: string;
+  MERCADOPAGO_SANDBOX?: string;
 }
 
 const envSchema = joi.object({
@@ -199,7 +205,32 @@ const envSchema = joi.object({
       then: joi.required(),
       otherwise: joi.optional()
     })
-    .description('AWS SES Region')
+    .description('AWS SES Region'),
+
+  // Payment Plugin Configuration
+  OPENPAY_MERCHANT_ID: joi.string()
+    .optional()
+    .description('OpenPay Merchant ID'),
+
+  OPENPAY_PRIVATE_KEY: joi.string()
+    .optional()
+    .description('OpenPay Private Key'),
+
+  OPENPAY_SANDBOX: joi.string()
+    .valid('true', 'false')
+    .optional()
+    .default('true')
+    .description('OpenPay Sandbox Mode'),
+
+  MERCADOPAGO_ACCESS_TOKEN: joi.string()
+    .optional()
+    .description('MercadoPago Access Token'),
+
+  MERCADOPAGO_SANDBOX: joi.string()
+    .valid('true', 'false')
+    .optional()
+    .default('true')
+    .description('MercadoPago Sandbox Mode')
 }).unknown();
 
 export const validateEnv = (): EnvConfig => {
@@ -231,7 +262,13 @@ export const validateEnv = (): EnvConfig => {
       SMTP_USER: process.env.SMTP_USER,
       SMTP_PASS: process.env.SMTP_PASS,
       EMAIL_FROM: process.env.EMAIL_FROM,
-      AWS_SES_REGION: process.env.AWS_SES_REGION
+      AWS_SES_REGION: process.env.AWS_SES_REGION,
+      // Payment Plugin Configuration
+      OPENPAY_MERCHANT_ID: process.env.OPENPAY_MERCHANT_ID,
+      OPENPAY_PRIVATE_KEY: process.env.OPENPAY_PRIVATE_KEY,
+      OPENPAY_SANDBOX: process.env.OPENPAY_SANDBOX,
+      MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
+      MERCADOPAGO_SANDBOX: process.env.MERCADOPAGO_SANDBOX
     };
 
     const { error, value } = envSchema.validate(envVars, {
