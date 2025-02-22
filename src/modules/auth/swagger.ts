@@ -15,27 +15,26 @@ export const authSwaggerDocs = `
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": null,
-                 "success": true,
-                 "message": "Operation successful",
-                 "code": 200,
-                 "data": {}
-               }
+ *               example:
+ *                 error: null
+ *                 success: true
+ *                 message: "Operation successful"
+ *                 code: 200
+ *                 data: {}
  *       400:
  *         description: Bad request
  *         content:
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": "Operation failed",
-                 "success": false,
-                 "message": "Operation failed",
-                 "code": 400,
-                 "data": {}
-               }
+ *               example:
+ *                 error: "Operation failed"
+ *                 success: false
+ *                 message: "Operation failed"
+ *                 code: 400
+ *                 data: {}
  */
+
 /**
  * @swagger
  * /api/v1/auth/login:
@@ -52,27 +51,26 @@ export const authSwaggerDocs = `
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": null,
-                 "success": true,
-                 "message": "Operation successful",
-                 "code": 200,
-                 "data": {}
-               }
+ *               example:
+ *                 error: null
+ *                 success: true
+ *                 message: "Operation successful"
+ *                 code: 200
+ *                 data: {}
  *       400:
  *         description: Bad request
  *         content:
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": "Operation failed",
-                 "success": false,
-                 "message": "Operation failed",
-                 "code": 400,
-                 "data": {}
-               }
+ *               example:
+ *                 error: "Operation failed"
+ *                 success: false
+ *                 message: "Operation failed"
+ *                 code: 400
+ *                 data: {}
  */
+
 /**
  * @swagger
  * /api/v1/auth/reset-password:
@@ -89,27 +87,26 @@ export const authSwaggerDocs = `
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": null,
-                 "success": true,
-                 "message": "Operation successful",
-                 "code": 200,
-                 "data": {}
-               }
+ *               example:
+ *                 error: null
+ *                 success: true
+ *                 message: "Operation successful"
+ *                 code: 200
+ *                 data: {}
  *       400:
  *         description: Bad request
  *         content:
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": "Operation failed",
-                 "success": false,
-                 "message": "Operation failed",
-                 "code": 400,
-                 "data": {}
-               }
+ *               example:
+ *                 error: "Operation failed"
+ *                 success: false
+ *                 message: "Operation failed"
+ *                 code: 400
+ *                 data: {}
  */
+
 /**
  * @swagger
  * /api/v1/auth/verify:
@@ -126,27 +123,26 @@ export const authSwaggerDocs = `
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": null,
-                 "success": true,
-                 "message": "Operation successful",
-                 "code": 200,
-                 "data": {}
-               }
+ *               example:
+ *                 error: null
+ *                 success: true
+ *                 message: "Operation successful"
+ *                 code: 200
+ *                 data: {}
  *       400:
  *         description: Bad request
  *         content:
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": "Operation failed",
-                 "success": false,
-                 "message": "Operation failed",
-                 "code": 400,
-                 "data": {}
-               }
+ *               example:
+ *                 error: "Operation failed"
+ *                 success: false
+ *                 message: "Operation failed"
+ *                 code: 400
+ *                 data: {}
  */
+
 /**
  * @swagger
  * /api/v1/auth/set-role:
@@ -163,24 +159,22 @@ export const authSwaggerDocs = `
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": null,
-                 "success": true,
-                 "message": "Operation successful",
-                 "code": 200,
-                 "data": {}
-               }
+ *               example:
+ *                 error: null
+ *                 success: true
+ *                 message: "Operation successful"
+ *                 code: 200
+ *                 data: {}
  *       400:
  *         description: Bad request
  *         content:
  *           application/json:
  *             schema:
  *               type: object
- *               example: {
-                 "error": "Operation failed",
-                 "success": false,
-                 "message": "Operation failed",
-                 "code": 400,
-                 "data": {}
-               }
- */`;
+ *               example:
+ *                 error: "Operation failed"
+ *                 success: false
+ *                 message: "Operation failed"
+ *                 code: 400
+ *                 data: {}
+ */`
