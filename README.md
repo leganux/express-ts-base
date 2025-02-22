@@ -313,6 +313,69 @@ Each generated module includes:
 - Custom operations example
 - Comprehensive swagger documentation
 
+## Socket Generator
+
+The project includes a socket generator that creates real-time WebSocket functionality for your modules using Socket.IO.
+
+### Usage
+
+```bash
+# Generate socket implementation for a module
+bun run generate:socket src/modules/your-module/model.ts
+```
+
+### Generated Files
+
+The script generates the following files in your module directory:
+- `socket.ts`: Socket.IO implementation with CRUD operations
+- `socket-init.ts`: Socket server initialization
+- `socket-test.ts`: Example client implementation
+
+### Features
+
+Each generated socket implementation includes:
+- Complete CRUD operations over WebSocket
+- Real-time updates
+- Room-based broadcasting
+- Permission middleware
+- Error handling
+- Connection management
+- TypeScript support
+
+### Example Usage
+
+After generating the socket implementation:
+
+1. Initialize the socket server in your module:
+```typescript
+import { initializeUserSockets } from './socket-init';
+
+// In your Express app setup
+const server = http.createServer(app);
+initializeUserSockets(server);
+```
+
+2. Connect from the client:
+```typescript
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3000', {
+  path: '/socket/your-module'
+});
+
+// Get all items
+socket.emit('getMany', JSON.stringify({
+  query: {
+    select: { field1: 1, field2: 1 }
+  }
+}));
+
+// Listen for response
+socket.on('getMany:response', (response) => {
+  console.log('Items retrieved:', response);
+});
+```
+
 ## Plugin System
 
 The project includes a plugin system that allows you to extend the API's functionality. Plugins are automatically loaded from the `src/plugins` directory.

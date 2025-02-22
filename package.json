@@ -10,7 +10,8 @@
     "swagger:generate": "bun run src/scripts/generate-swagger.ts",
     "swagger:watch": "bun --watch run src/scripts/generate-swagger.ts",
     "generate:module": "bun run src/libs/apiato/scripts/generate.ts",
-    "generate:plugin": "bun run src/libs/apiato/scripts/generate-plugin.ts"
+    "generate:plugin": "bun run src/libs/apiato/scripts/generate-plugin.ts",
+    "generate:socket": "bun run src/libs/apiato/scripts/generate-socket.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",
@@ -41,6 +42,7 @@
     "qrcode": "^1.5.4",
     "qrcode-terminal": "^0.12.0",
     "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "stripe": "^17.6.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
