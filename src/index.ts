@@ -6,8 +6,6 @@ import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
 import userRoutes from './modules/users/routes';
 import authRoutes from './modules/auth/routes';
-import fileRoutes from './modules/files/routes';
-import emailRoutes from './modules/email/routes';
 import { connectDB } from './config/database';
 import { logger, stream } from './utils/logger';
 import { validateEnv } from './config/env.validator';
@@ -37,8 +35,6 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
 // Routes with v1 prefix
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/users', userRoutes);
-app.use('/api/v1/files', fileRoutes);
-app.use('/api/v1/email', emailRoutes);
 
 // Firebase Config Route
 app.get('/config', (_req: Request, res: Response) => {
@@ -101,23 +97,23 @@ connectDB().then(async () => {
     logger.info('  GET  /api/v1/auth/verify');
     logger.info('  POST /api/v1/auth/set-role (Admin only)');
     
-    logger.info('Files:');
-    logger.info('  POST /api/v1/files/single');
-    logger.info('  POST /api/v1/files/many');
-    logger.info('  DELETE /api/v1/files/:filepath');
-    logger.info('  GET /api/v1/files/view/:id');
-    
-    logger.info('Email:');
-    logger.info('  POST /api/v1/email/send');
-    logger.info('  POST /api/v1/email/send-template');
-    logger.info('  POST /api/v1/email/send-with-attachment');
-    
     logger.info('Users:');
     logger.info('  GET  /api/v1/users');
     logger.info('  GET  /api/v1/users/me');
     logger.info('  GET  /api/v1/users/:id');
     logger.info('  PUT  /api/v1/users/me');
     logger.info('  DELETE /api/v1/users/:id');
+
+    logger.info('Files:');
+    logger.info('  POST /api/v1/files/upload');
+    logger.info('  POST /api/v1/files/upload-many');
+    logger.info('  DELETE /api/v1/files/:filepath');
+    logger.info('  GET /api/v1/files/view/:id');
+
+    logger.info('Email:');
+    logger.info('  POST /api/v1/email/send');
+    logger.info('  POST /api/v1/email/send-template');
+    logger.info('  POST /api/v1/email/send-with-attachment');
   });
 }).catch(error => {
   logger.error('Failed to start server:', error);

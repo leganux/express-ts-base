@@ -1,10 +1,43 @@
 {
+  "enviacom": {
+    "name": "enviacom",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "routes": "/api/enviacom"
+    }
+  },
+  "skydropx": {
+    "name": "skydropx",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "routes": "/api/skydropx"
+    }
+  },
+  "stripe": {
+    "name": "stripe",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "routes": "/api/stripe"
+    }
+  },
+  "whatsapp": {
+    "name": "whatsapp",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "routes": "/api/whatsapp"
+    }
+  },
   "openpay": {
     "name": "openpay",
     "version": "1.0.0",
     "enabled": true,
     "config": {
-      "sandbox": true
+      "sandbox": true,
+      "routes": "/api/openpay"
     }
   },
   "mercadopago": {
@@ -12,7 +45,24 @@
     "version": "1.0.0",
     "enabled": true,
     "config": {
-      "sandbox": true
+      "sandbox": true,
+      "routes": "/api/mercadopago"
+    }
+  },
+  "email": {
+    "name": "email",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "routes": "/api/v1/email"
+    }
+  },
+  "files": {
+    "name": "files",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "routes": "/api/v1/files"
     }
   }
 }

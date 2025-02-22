@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { validateFirebaseToken, AuthRequest } from '../../middleware/auth.middleware';
-import { emailService } from '../../services/email.service';
 import { logger } from '../../utils/logger';
+import { Express } from 'express';
 
 const router = Router();
 
@@ -47,6 +47,7 @@ router.post('/send',
   async (req: AuthRequest, res) => {
     try {
       const { to, subject, content, title } = req.body;
+      const emailService = (req.app as Express).locals.emailService;
 
       if (!to || !subject || !content) {
         return res.status(400).json({
@@ -135,6 +136,7 @@ router.post('/send-template',
   async (req: AuthRequest, res) => {
     try {
       const { to, subject, templatePath, context } = req.body;
+      const emailService = (req.app as Express).locals.emailService;
 
       if (!to || !subject || !templatePath) {
         return res.status(400).json({
@@ -238,6 +240,7 @@ router.post('/send-with-attachment',
   async (req: AuthRequest, res) => {
     try {
       const { to, subject, content, title, attachments } = req.body;
+      const emailService = (req.app as Express).locals.emailService;
 
       if (!to || !subject || !content || !attachments) {
         return res.status(400).json({

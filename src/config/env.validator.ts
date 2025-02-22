@@ -1,7 +1,19 @@
 import joi from 'joi';
 import { logger } from '../utils/logger';
+import { StripeEnvConfig, stripeEnvSchema } from '../plugins/stripe/validation/env';
+import { SkydropxEnvConfig, skydropxEnvSchema } from '../plugins/skydropx/validation/env';
+import { EnviacomEnvConfig, enviacomEnvSchema } from '../plugins/enviacom/validation/env';
+import { WhatsAppEnvConfig, whatsappEnvSchema } from '../plugins/whatsapp/validation/env';
+import { MercadopagoEnvConfig, mercadopagoEnvSchema } from '../plugins/mercadopago/validation/env';
+import { OpenpayEnvConfig, openpayEnvSchema } from '../plugins/openpay/validation/env';
 
-export interface EnvConfig {
+export interface EnvConfig extends 
+    StripeEnvConfig,
+    SkydropxEnvConfig,
+    EnviacomEnvConfig,
+    WhatsAppEnvConfig,
+    MercadopagoEnvConfig,
+    OpenpayEnvConfig {
   NODE_ENV: string;
   PORT: number;
   MONGODB_URI: string;
@@ -31,12 +43,6 @@ export interface EnvConfig {
   SMTP_PASS?: string;
   EMAIL_FROM: string;
   AWS_SES_REGION: string;
-  // Payment Plugin Configuration
-  OPENPAY_MERCHANT_ID?: string;
-  OPENPAY_PRIVATE_KEY?: string;
-  OPENPAY_SANDBOX?: string;
-  MERCADOPAGO_ACCESS_TOKEN?: string;
-  MERCADOPAGO_SANDBOX?: string;
 }
 
 const envSchema = joi.object({
@@ -207,30 +213,13 @@ const envSchema = joi.object({
     })
     .description('AWS SES Region'),
 
-  // Payment Plugin Configuration
-  OPENPAY_MERCHANT_ID: joi.string()
-    .optional()
-    .description('OpenPay Merchant ID'),
-
-  OPENPAY_PRIVATE_KEY: joi.string()
-    .optional()
-    .description('OpenPay Private Key'),
-
-  OPENPAY_SANDBOX: joi.string()
-    .valid('true', 'false')
-    .optional()
-    .default('true')
-    .description('OpenPay Sandbox Mode'),
-
-  MERCADOPAGO_ACCESS_TOKEN: joi.string()
-    .optional()
-    .description('MercadoPago Access Token'),
-
-  MERCADOPAGO_SANDBOX: joi.string()
-    .valid('true', 'false')
-    .optional()
-    .default('true')
-    .description('MercadoPago Sandbox Mode')
+  // Plugin Configurations
+  ...openpayEnvSchema,
+  ...mercadopagoEnvSchema,
+  ...stripeEnvSchema,
+  ...skydropxEnvSchema,
+  ...enviacomEnvSchema,
+  ...whatsappEnvSchema
 }).unknown();
 
 export const validateEnv = (): EnvConfig => {
@@ -268,7 +257,14 @@ export const validateEnv = (): EnvConfig => {
       OPENPAY_PRIVATE_KEY: process.env.OPENPAY_PRIVATE_KEY,
       OPENPAY_SANDBOX: process.env.OPENPAY_SANDBOX,
       MERCADOPAGO_ACCESS_TOKEN: process.env.MERCADOPAGO_ACCESS_TOKEN,
-      MERCADOPAGO_SANDBOX: process.env.MERCADOPAGO_SANDBOX
+      MERCADOPAGO_SANDBOX: process.env.MERCADOPAGO_SANDBOX,
+      // Stripe Configuration
+      STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+      STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+      // Skydropx Configuration
+      SKYDROPX_API_KEY: process.env.SKYDROPX_API_KEY,
+      // Enviacom Configuration
+      ENVIACOM_API_KEY: process.env.ENVIACOM_API_KEY
     };
 
     const { error, value } = envSchema.validate(envVars, {

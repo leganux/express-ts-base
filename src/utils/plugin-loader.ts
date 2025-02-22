@@ -52,22 +52,53 @@ class PluginLoader {
       try {
         const pluginPath = path.join(this.pluginsDir, pluginDir);
         const pluginIndexPath = path.join(pluginPath, 'index.ts');
+        const pluginRoutesPath = path.join(pluginPath, 'routes.ts');
 
         if (!fs.existsSync(pluginIndexPath)) {
           continue;
         }
 
-        const pluginModule = require(pluginIndexPath);
-        const plugin: IPlugin = new pluginModule.default();
+        const { default: PluginClass } = await import(`file://${pluginIndexPath}`);
         
-        const config = pluginConfig[plugin.name];
+        // Get plugin config and API key from environment
+        const config = pluginConfig[pluginDir];
         if (config && !config.enabled) {
-          logger.info(`Plugin ${plugin.name} is disabled, skipping...`);
+          logger.info(`Plugin ${pluginDir} is disabled, skipping...`);
           continue;
         }
 
+        // Get API key based on plugin name
+        let apiKey: string | undefined;
+        switch (pluginDir) {
+          case 'stripe':
+            apiKey = process.env.STRIPE_SECRET_KEY;
+            break;
+          case 'skydropx':
+            apiKey = process.env.SKYDROPX_API_KEY;
+            break;
+          case 'enviacom':
+            apiKey = process.env.ENVIACOM_API_KEY;
+            break;
+        }
+
+        const plugin: IPlugin = new PluginClass(apiKey);
+
+        // Initialize plugin
         await plugin.initialize(app, mongoose);
         this.plugins.set(plugin.name, plugin);
+
+        // Load and register routes if they exist
+        if (fs.existsSync(pluginRoutesPath)) {
+          const { default: routesFunction } = await import(`file://${pluginRoutesPath}`);
+          if (typeof routesFunction === 'function') {
+            const router = routesFunction();
+            // Apply auth middleware and register routes
+            import('../middleware/auth.middleware').then(({ validateFirebaseToken }) => {
+              app.use(`/api/v1/${pluginDir}`, validateFirebaseToken, router);
+            });
+          }
+        }
+
         logger.info(`Plugin ${plugin.name} v${plugin.version} loaded successfully`);
       } catch (error) {
         logger.error(`Error loading plugin ${pluginDir}:`, error);

@@ -1,11 +1,12 @@
+import { IPlugin } from '../../types/plugin';
+import { Express } from 'express';
+import { validateEmailEnv } from './validation/env';
 import nodemailer, { Transporter } from 'nodemailer';
 import { SESClient, SendEmailCommand } from '@aws-sdk/client-ses';
-import { validateEnv } from '../config/env.validator';
-import { logger } from '../utils/logger';
+import { logger } from '../../utils/logger';
 import path from 'path';
 import fs from 'fs/promises';
-
-const config = validateEnv();
+import routes from './routes';
 
 // Base email template
 const baseTemplate = `
@@ -89,25 +90,28 @@ interface EmailOptions {
 class EmailService {
   private sesClient: SESClient | null;
   private smtpTransporter: Transporter | null;
+  private config: ReturnType<typeof validateEmailEnv>;
 
-  constructor() {
+  constructor(env: Record<string, any>) {
+    this.config = validateEmailEnv(env);
+
     // Initialize SES client if using AWS SES
-    this.sesClient = config.EMAIL_SERVICE === 'ses' ? new SESClient({
-      region: config.AWS_SES_REGION,
+    this.sesClient = this.config.EMAIL_SERVICE === 'ses' ? new SESClient({
+      region: this.config.AWS_SES_REGION,
       credentials: {
-        accessKeyId: config.AWS_ACCESS_KEY_ID,
-        secretAccessKey: config.AWS_SECRET_ACCESS_KEY
+        accessKeyId: this.config.AWS_ACCESS_KEY_ID!,
+        secretAccessKey: this.config.AWS_SECRET_ACCESS_KEY!
       }
     }) : null;
 
     // Initialize SMTP transporter if using SMTP
-    this.smtpTransporter = config.EMAIL_SERVICE === 'smtp' ? nodemailer.createTransport({
-      host: config.SMTP_HOST,
-      port: config.SMTP_PORT,
-      secure: config.SMTP_PORT === 465,
+    this.smtpTransporter = this.config.EMAIL_SERVICE === 'smtp' ? nodemailer.createTransport({
+      host: this.config.SMTP_HOST,
+      port: this.config.SMTP_PORT,
+      secure: this.config.SMTP_PORT === 465,
       auth: {
-        user: config.SMTP_USER,
-        pass: config.SMTP_PASS
+        user: this.config.SMTP_USER,
+        pass: this.config.SMTP_PASS
       }
     }) : null;
   }
@@ -121,7 +125,7 @@ class EmailService {
         ...options.context
       });
 
-      if (config.EMAIL_SERVICE === 'ses') {
+      if (this.config.EMAIL_SERVICE === 'ses') {
         await this.sendWithSES({
           ...options,
           html
@@ -146,7 +150,7 @@ class EmailService {
   // Load template from file
   async loadTemplate(templatePath: string): Promise<string> {
     try {
-      const fullPath = path.join(__dirname, '..', 'templates', templatePath);
+      const fullPath = path.join(__dirname, '..', '..', 'templates', templatePath);
       return await fs.readFile(fullPath, 'utf8');
     } catch (error) {
       logger.error('Error loading email template:', error);
@@ -171,7 +175,7 @@ class EmailService {
           Data: options.subject
         }
       },
-      Source: config.EMAIL_FROM
+      Source: this.config.EMAIL_FROM
     });
 
     await this.sesClient.send(command);
@@ -181,7 +185,7 @@ class EmailService {
     if (!this.smtpTransporter) throw new Error('SMTP transporter not initialized');
 
     await this.smtpTransporter.sendMail({
-      from: config.EMAIL_FROM,
+      from: this.config.EMAIL_FROM,
       to: options.to,
       subject: options.subject,
       html: options.html,
@@ -202,4 +206,15 @@ class EmailService {
   }
 }
 
-export const emailService = new EmailService();
+class EmailPlugin implements IPlugin {
+  name = 'email';
+  version = '1.0.0';
+
+  async initialize(app: Express, mongoose: typeof import("mongoose")) {
+    const emailService = new EmailService(process.env);
+    app.locals.emailService = emailService;
+    app.use('/api/v1/email', routes);
+  }
+}
+
+export default EmailPlugin;

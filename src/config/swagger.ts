@@ -91,10 +91,12 @@ const options = {
     },
   },
   apis: [
-    join(modulesPath, 'auth/routes.ts'),
-    join(modulesPath, 'users/routes.ts'),
-    join(modulesPath, 'files/routes.ts'),
-    join(modulesPath, 'email/routes.ts')
+    // Module routes
+    join(modulesPath, '**/routes.ts'),
+    join(modulesPath, '**/swagger.ts'),
+    // Plugin routes and swagger files
+    join(__dirname, '../plugins/**/routes.ts'),
+    join(__dirname, '../plugins/**/swagger.ts')
   ],
 };
 
