@@ -232,6 +232,7 @@ class WhatsAppPlugin implements IPlugin {
 
     async initialize(app: Express, mongoose: typeof import("mongoose")) {
         const whatsappService = new WhatsAppService(app);
+        await whatsappService.connect();
         app.locals.whatsappService = whatsappService;
         app.use('/api/v1/whatsapp', routes);
     }

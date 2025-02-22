@@ -16,12 +16,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": null,
-  "success": true,
-  "message": "Operation successful",
-  "code": 200,
-  "data": {}
-}
+                 "error": null,
+                 "success": true,
+                 "message": "Operation successful",
+                 "code": 200,
+                 "data": {}
+               }
  *       400:
  *         description: Bad request
  *         content:
@@ -29,12 +29,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": "Operation failed",
-  "success": false,
-  "message": "Operation failed",
-  "code": 400,
-  "data": {}
-}
+                 "error": "Operation failed",
+                 "success": false,
+                 "message": "Operation failed",
+                 "code": 400,
+                 "data": {}
+               }
  */
 /**
  * @swagger
@@ -53,12 +53,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": null,
-  "success": true,
-  "message": "Operation successful",
-  "code": 200,
-  "data": {}
-}
+                 "error": null,
+                 "success": true,
+                 "message": "Operation successful",
+                 "code": 200,
+                 "data": {}
+               }
  *       400:
  *         description: Bad request
  *         content:
@@ -66,12 +66,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": "Operation failed",
-  "success": false,
-  "message": "Operation failed",
-  "code": 400,
-  "data": {}
-}
+                 "error": "Operation failed",
+                 "success": false,
+                 "message": "Operation failed",
+                 "code": 400,
+                 "data": {}
+               }
  */
 /**
  * @swagger
@@ -90,12 +90,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": null,
-  "success": true,
-  "message": "Operation successful",
-  "code": 200,
-  "data": {}
-}
+                 "error": null,
+                 "success": true,
+                 "message": "Operation successful",
+                 "code": 200,
+                 "data": {}
+               }
  *       400:
  *         description: Bad request
  *         content:
@@ -103,12 +103,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": "Operation failed",
-  "success": false,
-  "message": "Operation failed",
-  "code": 400,
-  "data": {}
-}
+                 "error": "Operation failed",
+                 "success": false,
+                 "message": "Operation failed",
+                 "code": 400,
+                 "data": {}
+               }
  */
 /**
  * @swagger
@@ -127,12 +127,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": null,
-  "success": true,
-  "message": "Operation successful",
-  "code": 200,
-  "data": {}
-}
+                 "error": null,
+                 "success": true,
+                 "message": "Operation successful",
+                 "code": 200,
+                 "data": {}
+               }
  *       400:
  *         description: Bad request
  *         content:
@@ -140,12 +140,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": "Operation failed",
-  "success": false,
-  "message": "Operation failed",
-  "code": 400,
-  "data": {}
-}
+                 "error": "Operation failed",
+                 "success": false,
+                 "message": "Operation failed",
+                 "code": 400,
+                 "data": {}
+               }
  */
 /**
  * @swagger
@@ -164,12 +164,12 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": null,
-  "success": true,
-  "message": "Operation successful",
-  "code": 200,
-  "data": {}
-}
+                 "error": null,
+                 "success": true,
+                 "message": "Operation successful",
+                 "code": 200,
+                 "data": {}
+               }
  *       400:
  *         description: Bad request
  *         content:
@@ -177,10 +177,10 @@ export const usersSwaggerDocs = `
  *             schema:
  *               type: object
  *               example: {
-  "error": "Operation failed",
-  "success": false,
-  "message": "Operation failed",
-  "code": 400,
-  "data": {}
-}
+                 "error": "Operation failed",
+                 "success": false,
+                 "message": "Operation failed",
+                 "code": 400,
+                 "data": {}
+               }
  */`;

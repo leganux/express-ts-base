@@ -87,17 +87,7 @@ class PluginLoader {
         await plugin.initialize(app, mongoose);
         this.plugins.set(plugin.name, plugin);
 
-        // Load and register routes if they exist
-        if (fs.existsSync(pluginRoutesPath)) {
-          const { default: routesFunction } = await import(`file://${pluginRoutesPath}`);
-          if (typeof routesFunction === 'function') {
-            const router = routesFunction();
-            // Apply auth middleware and register routes
-            import('../middleware/auth.middleware').then(({ validateFirebaseToken }) => {
-              app.use(`/api/v1/${pluginDir}`, validateFirebaseToken, router);
-            });
-          }
-        }
+        // Note: Routes are now handled by each plugin's initialize method
 
         logger.info(`Plugin ${plugin.name} v${plugin.version} loaded successfully`);
       } catch (error) {
