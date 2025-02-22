@@ -1,5 +1,5 @@
 import mongoose, { Document, Schema } from 'mongoose';
-import { UserRole } from '../../config/firebase';
+import { UserRole } from '../../types/user';
 
 export interface IUser extends Document {
   firebaseUid: string;
@@ -11,6 +11,7 @@ export interface IUser extends Document {
   lastLogin?: Date;
   createdAt: Date;
   updatedAt: Date;
+  updateLastLogin(): Promise<void>;
 }
 
 const userSchema = new Schema({

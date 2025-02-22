@@ -8,7 +8,9 @@
     "dev": "bun --watch run src/index.ts",
     "build": "tsc",
     "swagger:generate": "bun run src/scripts/generate-swagger.ts",
-    "swagger:watch": "bun --watch run src/scripts/generate-swagger.ts"
+    "swagger:watch": "bun --watch run src/scripts/generate-swagger.ts",
+    "generate:module": "bun run src/libs/apiato/scripts/generate.ts",
+    "generate:plugin": "bun run src/libs/apiato/scripts/generate-plugin.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",

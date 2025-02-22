@@ -220,3 +220,323 @@ bun run build
 
 # Start production server
 bun run start
+
+## Module Generator
+
+The project includes a module generator script that automatically creates a complete CRUD module based on a schema file. This tool helps maintain consistency and reduces boilerplate code.
+
+### Usage
+
+```bash
+# Generate a new module from a schema file
+bun run generate:module src/modules/your-module/model.ts
+```
+
+### Generated Files
+
+The script generates the following files in your module directory:
+- `controller.ts`: Controller with custom operations
+- `routes.ts`: Routes with apiato CRUD operations
+- `swagger.ts`: Complete swagger documentation
+
+### Example Schema
+
+Create your model file (e.g., `src/modules/products/model.ts`):
+
+```typescript
+import mongoose, { Document, Schema } from 'mongoose';
+
+export interface IProduct extends Document {
+  name: string;
+  description: string;
+  price: number;
+  stock?: number;
+  category: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+const productSchema = new Schema({
+  name: {
+    type: String,
+    required: [true, 'Name is required'],
+    trim: true
+  },
+  description: {
+    type: String,
+    required: [true, 'Description is required'],
+    trim: true
+  },
+  price: {
+    type: Number,
+    required: [true, 'Price is required'],
+    min: 0
+  },
+  stock: {
+    type: Number,
+    default: 0
+  },
+  category: {
+    type: String,
+    required: [true, 'Category is required'],
+    trim: true
+  }
+}, {
+  timestamps: true
+});
+
+export const ProductModel = mongoose.model<IProduct>('Product', productSchema);
+```
+
+Then run:
+```bash
+bun run generate:module src/modules/products/model.ts
+```
+
+This will generate:
+1. A controller with custom operations
+2. Routes with all apiato operations (CRUD + advanced queries)
+3. Swagger documentation for all endpoints
+
+### Generated Features
+
+Each generated module includes:
+- Complete CRUD operations using apiato
+- Authentication middleware
+- Role-based access control
+- Advanced query operations:
+  - Pagination
+  - Filtering
+  - Sorting
+  - Field selection
+  - Population
+- Custom operations example
+- Comprehensive swagger documentation
+
+## Plugin System
+
+The project includes a plugin system that allows you to extend the API's functionality. Plugins are automatically loaded from the `src/plugins` directory.
+
+### Generating a New Plugin
+
+The project includes a plugin generator script that creates a complete plugin structure with database support:
+
+```bash
+# Generate a new plugin
+bun run generate:plugin my-plugin
+```
+
+This will create:
+1. Basic plugin structure in `src/plugins/my-plugin/`
+2. Database connection setup
+3. Example model and routes
+4. Environment validation
+5. Swagger documentation
+6. Plugin configuration (disabled by default)
+
+The generated plugin includes:
+- Separate database connection
+- Authentication middleware
+- Role-based access control
+- Environment variable validation
+- API documentation
+- Example CRUD operations
+
+### Creating a Plugin Manually
+
+1. Create a new directory in `src/plugins` with your plugin name:
+```bash
+mkdir src/plugins/my-plugin
+```
+
+2. Create the required files:
+```
+src/plugins/my-plugin/
+  ├── index.ts         # Plugin entry point
+  ├── routes.ts        # Plugin routes
+  ├── README.md        # Plugin documentation
+  ├── swagger.ts       # Swagger documentation
+  ├── validation/      # Validation schemas
+  │   └── env.ts      # Environment variables validation
+  └── models/         # Plugin models
+      └── example.model.ts
+```
+
+3. Plugin Entry Point (`index.ts`):
+```typescript
+import { Router } from 'express';
+import { z } from 'zod';
+import routes from './routes';
+
+// Plugin configuration type
+export interface PluginConfig {
+  apiKey?: string;
+  endpoint?: string;
+  // Add other configuration options
+}
+
+// Plugin class must implement Plugin interface
+export class MyPlugin implements Plugin {
+  public name = 'my-plugin';
+  public version = '1.0.0';
+  public routes: Router;
+  private config: PluginConfig;
+
+  constructor(config: PluginConfig = {}) {
+    this.config = config;
+    this.routes = routes;
+  }
+
+  // Initialize plugin
+  async init(): Promise<void> {
+    // Initialization logic
+    console.log('MyPlugin initialized');
+  }
+
+  // Cleanup when plugin is disabled
+  async destroy(): Promise<void> {
+    // Cleanup logic
+    console.log('MyPlugin destroyed');
+  }
+}
+
+// Environment variables validation schema
+export const envSchema = z.object({
+  MY_PLUGIN_API_KEY: z.string().optional(),
+  MY_PLUGIN_ENDPOINT: z.string().url().optional()
+});
+
+// Default export must be the plugin class
+export default MyPlugin;
+```
+
+4. Plugin Routes (`routes.ts`):
+```typescript
+import { Router } from 'express';
+import { validateFirebaseToken, roleGuard } from '../../middleware/auth.middleware';
+import { UserRole } from '../../types/user';
+
+const router = Router();
+
+// Apply authentication middleware
+router.use(validateFirebaseToken);
+
+// Define routes
+router.get('/', roleGuard([UserRole.ADMIN]), async (req, res) => {
+  res.json({
+    error: {},
+    success: true,
+    message: 'Plugin endpoint',
+    code: 200,
+    data: {}
+  });
+});
+
+export default router;
+```
+
+5. Swagger Documentation (`swagger.ts`):
+```typescript
+export const myPluginSwaggerDocs = `
+/**
+ * @swagger
+ * /api/v1/my-plugin:
+ *   get:
+ *     tags:
+ *       - MyPlugin
+ *     summary: Example endpoint
+ *     description: Plugin endpoint description
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Successful operation
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: object
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 code:
+ *                   type: number
+ *                 data:
+ *                   type: object
+ */`;
+```
+
+6. Environment Validation (`validation/env.ts`):
+```typescript
+import { z } from 'zod';
+
+export const schema = z.object({
+  MY_PLUGIN_API_KEY: z.string().optional(),
+  MY_PLUGIN_ENDPOINT: z.string().url().optional()
+});
+```
+
+### Enabling the Plugin
+
+1. Add plugin configuration to `src/plugins/config.json`:
+```json
+{
+  "my-plugin": {
+    "enabled": true,
+    "config": {
+      "apiKey": "optional-api-key",
+      "endpoint": "https://api.example.com"
+    }
+  }
+}
+```
+
+2. Add environment variables to `.env`:
+```env
+MY_PLUGIN_API_KEY=your-api-key
+MY_PLUGIN_ENDPOINT=https://api.example.com
+```
+
+### Plugin Features
+
+Your plugin can include:
+- Custom routes and controllers
+- Database models
+- Middleware
+- External API integrations
+- Custom swagger documentation
+- Environment variable validation
+- Initialization and cleanup logic
+
+### Best Practices
+
+1. **Naming Convention**: Use kebab-case for plugin directory names
+2. **Documentation**: Include a README.md with:
+   - Plugin description
+   - Installation instructions
+   - Configuration options
+   - API endpoints
+   - Usage examples
+
+3. **Environment Variables**:
+   - Prefix with plugin name (e.g., MY_PLUGIN_*)
+   - Include validation schema
+   - Document all variables
+
+4. **Error Handling**:
+   - Use standard API error format
+   - Include proper error codes
+   - Provide meaningful error messages
+
+5. **Security**:
+   - Use authentication middleware
+   - Implement role-based access
+   - Validate all inputs
+
+6. **Testing**:
+   - Include unit tests
+   - Test initialization/destruction
+   - Test configuration validation

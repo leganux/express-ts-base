@@ -1,226 +1,86 @@
 import { Router } from 'express';
-import { validateFirebaseToken, AuthRequest } from '../../middleware/auth.middleware';
-import { userController } from './controller';
+import { UserModel } from './model';
+import { ApiatoNoSQL } from '../../libs/apiato/no-sql/apiato';
+import { UserRole } from '../../types/user';
+import { UserController } from './controller';
+import { validateFirebaseToken, roleGuard } from '../../middleware/auth.middleware';
 
 const router = Router();
+const apiato = new ApiatoNoSQL();
 
-/**
- * @swagger
- * /api/v1/users:
- *   get:
- *     tags:
- *       - Users
- *     summary: Get all users
- *     security:
- *       - BearerAuth: []
- *     responses:
- *       200:
- *         description: List of users retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: null
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: Users retrieved successfully
- *                 code:
- *                   type: number
- *                   example: 200
- *                 data:
- *                   type: array
- *                   items:
- *                     type: object
- *                     properties:
- *                       firebaseUid:
- *                         type: string
- *                       name:
- *                         type: string
- *                       email:
- *                         type: string
- *                       role:
- *                         type: string
- *                         enum: [PUBLIC, USER, ADMIN]
- *                       emailVerified:
- *                         type: boolean
- *       401:
- *         description: Unauthorized
- */
-router.get('/', validateFirebaseToken, (req: AuthRequest, res) => {
-  return userController.getAll(req, res);
-});
+// Apply authentication middleware to all routes
+router.use(validateFirebaseToken);
 
-/**
- * @swagger
- * /api/v1/users/me:
- *   get:
- *     tags:
- *       - Users
- *     summary: Get current user profile
- *     security:
- *       - BearerAuth: []
- *     responses:
- *       200:
- *         description: User profile retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: null
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: User profile retrieved successfully
- *                 code:
- *                   type: number
- *                   example: 200
- *                 data:
- *                   type: object
- *                   properties:
- *                     firebaseUid:
- *                       type: string
- *                     name:
- *                       type: string
- *                     email:
- *                       type: string
- *                     role:
- *                       type: string
- *                       enum: [PUBLIC, USER, ADMIN]
- *                     emailVerified:
- *                       type: boolean
- *       401:
- *         description: Unauthorized
- */
-router.get('/me', validateFirebaseToken, (req: AuthRequest, res) => {
-  return userController.getById(req, res);
-});
+// Validation schema for user
+const userValidation = {
+  firebaseUid: 'string,mandatory',
+  name: 'string,mandatory',
+  email: 'string,mandatory',
+  role: 'string,mandatory',
+  photoURL: 'string',
+  emailVerified: 'boolean'
+};
 
-/**
- * @swagger
- * /api/v1/users/{id}:
- *   get:
- *     tags:
- *       - Users
- *     summary: Get user by ID
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID
- *     responses:
- *       200:
- *         description: User details retrieved successfully
- *         content:
- *           application/json:
- *             schema:
- *               type: object
- *               properties:
- *                 error:
- *                   type: null
- *                 success:
- *                   type: boolean
- *                   example: true
- *                 message:
- *                   type: string
- *                   example: User details retrieved successfully
- *                 code:
- *                   type: number
- *                   example: 200
- *                 data:
- *                   type: object
- *                   properties:
- *                     firebaseUid:
- *                       type: string
- *                     name:
- *                       type: string
- *                     email:
- *                       type: string
- *                     role:
- *                       type: string
- *                       enum: [PUBLIC, USER, ADMIN]
- *                     emailVerified:
- *                       type: boolean
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: User not found
- */
-router.get('/:id', validateFirebaseToken, (req: AuthRequest, res) => {
-  return userController.getById(req, res);
-});
+// Population object (empty since we don't have relations yet)
+const populationObject = {};
 
-/**
- * @swagger
- * /api/v1/users/me:
- *   put:
- *     tags:
- *       - Users
- *     summary: Update current user profile
- *     security:
- *       - BearerAuth: []
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               name:
- *                 type: string
- *               email:
- *                 type: string
- *                 format: email
- *     responses:
- *       200:
- *         description: Profile updated successfully
- *       400:
- *         description: Invalid input
- *       401:
- *         description: Unauthorized
- */
-router.put('/me', validateFirebaseToken, (req: AuthRequest, res) => {
-  return userController.update(req, res);
-});
+// Create a new user (Admin only)
+router.post('/', roleGuard([UserRole.ADMIN]), apiato.createOne(
+  UserModel,
+  userValidation,
+  populationObject,
+  { customValidationCode: 400 }
+));
 
-/**
- * @swagger
- * /api/v1/users/{id}:
- *   delete:
- *     tags:
- *       - Users
- *     summary: Delete user by ID
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: User ID
- *     responses:
- *       200:
- *         description: User deleted successfully
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: User not found
- */
-router.delete('/:id', validateFirebaseToken, (req: AuthRequest, res) => {
-  return userController.delete(req, res);
-});
+// Get all users with pagination (Admin only)
+router.get('/', roleGuard([UserRole.ADMIN]), apiato.getMany(
+  UserModel,
+  populationObject
+));
+
+// Get user by ID (Admin and owner)
+router.get('/:id', apiato.getOneById(
+  UserModel,
+  populationObject
+));
+
+// Update user by ID (Admin and owner)
+router.put('/:id', apiato.updateById(
+  UserModel,
+  userValidation,
+  populationObject,
+  { updateFieldName: 'updatedAt' }
+));
+
+// Delete user by ID (Admin only)
+router.delete('/:id', roleGuard([UserRole.ADMIN]), apiato.findIdAndDelete(
+  UserModel
+));
+
+// Additional Apiato operations
+router.post('/find-update-create', roleGuard([UserRole.ADMIN]), apiato.findUpdateOrCreate(
+  UserModel,
+  userValidation,
+  populationObject,
+  { updateFieldName: 'updatedAt' }
+));
+
+router.put('/find-update', roleGuard([UserRole.ADMIN]), apiato.findUpdate(
+  UserModel,
+  userValidation,
+  populationObject,
+  { updateFieldName: 'updatedAt' }
+));
+
+router.get('/where/first', roleGuard([UserRole.ADMIN]), apiato.getOneWhere(
+  UserModel,
+  populationObject
+));
+
+// Custom operations
+router.get('/firebase/:firebaseUid', roleGuard([UserRole.ADMIN]), UserController.getByFirebaseUid);
+router.patch('/:id/last-login', UserController.updateLastLogin);
+router.patch('/:id/email-verification', roleGuard([UserRole.ADMIN]), UserController.updateEmailVerification);
+router.patch('/:id/role', roleGuard([UserRole.ADMIN]), UserController.updateRole);
 
 export default router;
