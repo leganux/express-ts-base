@@ -77,6 +77,62 @@ router.post('/login', (req, res) => {
 
 /**
  * @swagger
+ * /api/v1/auth/login-with-token:
+ *   post:
+ *     tags:
+ *       - Auth
+ *     summary: Login with Firebase ID Token
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - idToken
+ *             properties:
+ *               idToken:
+ *                 type: string
+ *                 description: Firebase ID Token
+ *               firstName:
+ *                 type: string
+ *                 description: Optional first name override
+ *               lastName:
+ *                 type: string
+ *                 description: Optional last name override
+ *     responses:
+ *       200:
+ *         description: Login successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 error:
+ *                   type: null
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 code:
+ *                   type: number
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       type: object
+ *                     token:
+ *                       type: string
+ *       401:
+ *         description: Invalid token
+ */
+router.post('/login-with-token', (req, res) => {
+  logger.debug('Login with token request');
+  return authController.loginWithToken(req, res);
+});
+
+/**
+ * @swagger
  * /api/v1/auth/reset-password:
  *   post:
  *     tags:

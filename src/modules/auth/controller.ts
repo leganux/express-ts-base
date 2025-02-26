@@ -3,7 +3,113 @@ import { adminAuth, UserRole, setUserRole } from '../../config/firebase';
 import { UserModel } from '../users/model';
 import { logger } from '../../utils/logger';
 
+interface FirebaseDecodedToken {
+  email: string;
+  name?: string;
+  picture?: string;
+  uid: string;
+  email_verified?: boolean;
+}
+
 export const authController = {
+  // Login with Firebase ID Token
+  loginWithToken: async (req: Request, res: Response) => {
+    try {
+      const { idToken, firstName, lastName } = req.body;
+      logger.debug('Starting login with token process');
+
+      // Verify the Firebase ID token
+      const decodedToken = await adminAuth.verifyIdToken(idToken) as FirebaseDecodedToken;
+      const { email, name, picture, uid, email_verified } = decodedToken;
+
+      logger.debug('Token decoded successfully:', {
+        email,
+        name,
+        picture,
+        email_verified
+      });
+
+      // Send verification email if not verified
+      if (!email_verified) {
+        logger.info('Sending verification email to:', { email });
+        await adminAuth.generateEmailVerificationLink(email);
+      }
+
+      // Check if user exists in our database
+      let user = await UserModel.findOne({ firebaseUid: uid });
+      
+      if (!user) {
+        logger.info('Registering new user from Firebase Auth:', { email });
+
+        // Use provided name/lastName if available, otherwise split display name
+        const userFirstName = firstName || (name ? name.split(' ')[0] : '');
+        const userLastName = lastName || (name ? name.split(' ').slice(1).join(' ') : '');
+
+        // Create user in database
+        user = await UserModel.create({
+          firebaseUid: uid,
+          email,
+          name: `${userFirstName} ${userLastName}`.trim(),
+          role: UserRole.USER,
+          emailVerified: email_verified || false,
+          photoURL: picture || null
+        });
+
+        logger.info('New user registered in database:', { uid });
+      } else {
+        // Update photo if Firebase has one and local doesn't
+        if (user && !user.photoURL && picture) {
+          user = await UserModel.findOneAndUpdate(
+            { firebaseUid: uid },
+            { photoURL: picture },
+            { new: true }
+          );
+          logger.info('User photo updated:', { uid });
+        }
+      }
+
+      // Set custom claims
+      if (!user) {
+        throw new Error('User not found after creation/update');
+      }
+
+      // Keep custom claims minimal to avoid size limit
+      const customClaims = {
+        role: user.role,
+        uid: user.id // Only include essential data
+      };
+      
+      await adminAuth.setCustomUserClaims(uid, customClaims);
+      logger.info('Custom claims set for user:', { uid });
+
+      // Generate custom token
+      const customToken = await adminAuth.createCustomToken(uid, customClaims);
+      logger.info('Custom token generated:', { uid });
+
+      res.json({
+        error: null,
+        success: true,
+        message: 'Login successful',
+        code: 200,
+        data: {
+          user,
+          token: customToken
+        }
+      });
+    } catch (error) {
+      logger.error('Firebase token verification error:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+
+      res.status(401).json({
+        error: errorMessage,
+        success: false,
+        message: 'Invalid token',
+        code: 401,
+        data: {}
+      });
+    }
+  },
+
   // Register with email and password
   register: async (req: Request, res: Response) => {
     try {
@@ -34,8 +140,12 @@ export const authController = {
       });
       logger.info('User created in database:', { uid: userRecord.uid });
 
-      // Generate custom token
-      const customToken = await adminAuth.createCustomToken(userRecord.uid);
+      // Generate custom token with minimal claims
+      const customClaims = {
+        role: UserRole.USER,
+        uid: newUser.id
+      };
+      const customToken = await adminAuth.createCustomToken(userRecord.uid, customClaims);
       logger.info('Custom token generated for user:', { uid: userRecord.uid });
 
       res.status(201).json({
@@ -72,8 +182,15 @@ export const authController = {
       const userRecord = await adminAuth.getUserByEmail(email);
       logger.info('User found:', { uid: userRecord.uid });
 
-      // Get custom token
-      const customToken = await adminAuth.createCustomToken(userRecord.uid);
+      // Get user from database
+      const dbUser = await UserModel.findOne({ firebaseUid: userRecord.uid });
+
+      // Get custom token with minimal claims
+      const customClaims = {
+        role: dbUser?.role || UserRole.USER,
+        uid: dbUser?.id
+      };
+      const customToken = await adminAuth.createCustomToken(userRecord.uid, customClaims);
       logger.info('Custom token generated:', { uid: userRecord.uid });
 
       // Update user's last login
@@ -82,9 +199,6 @@ export const authController = {
         { lastLogin: new Date() }
       );
       logger.info('Last login updated:', { uid: userRecord.uid });
-
-      // Get user from database
-      const dbUser = await UserModel.findOne({ firebaseUid: userRecord.uid });
 
       res.json({
         error: null,

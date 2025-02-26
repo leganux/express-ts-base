@@ -6,6 +6,7 @@ import { UserModel } from '../modules/users/model';
 export interface AuthRequest extends Request {
   user?: {
     uid: string;
+    _id?: string;
     email?: string;
     role: UserRole;
     dbUser?: any;
@@ -30,7 +31,7 @@ export const validateFirebaseToken = async (req: AuthRequest, res: Response, nex
     logger.debug('Validating token');
 
     // Verify the Firebase token
-    const decodedToken = await adminAuth.verifyIdToken(token);
+    const decodedToken = await adminAuth.verifyIdToken(token) as { uid: string; email?: string };
     logger.debug('Token verified successfully');
 
     // Get user role from Firebase custom claims
@@ -52,16 +53,17 @@ export const validateFirebaseToken = async (req: AuthRequest, res: Response, nex
 
     // Add user info to request
     req.user = {
-      uid: decodedToken.uid,
-      email: decodedToken.email,
-      role,
+      uid: dbUser.firebaseUid,
+      _id: dbUser._id,
+      email: dbUser.email,
+      role: dbUser.role,
       dbUser
     };
 
-    logger.debug('User authenticated:', { 
-      uid: decodedToken.uid, 
+    logger.debug('User authenticated:', {
+      uid: decodedToken.uid,
       email: decodedToken.email,
-      role 
+      role
     });
 
     next();
@@ -97,7 +99,7 @@ export const roleGuard = (allowedRoles: UserRole[]) => {
           role: req.user.role,
           requiredRoles: allowedRoles
         });
-        
+
         return res.status(403).json({
           error: 'Insufficient permissions',
           success: false,
