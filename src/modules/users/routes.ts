@@ -1,9 +1,11 @@
-import { Router } from 'express';
+import { Router, Request, Response, NextFunction } from 'express';
 import { UserModel } from './model';
 import { ApiatoNoSQL } from '../../libs/apiato/no-sql/apiato';
 import { UserRole } from '../../types/user';
 import { UserController } from './controller';
 import { validateFirebaseToken, roleGuard } from '../../middleware/auth.middleware';
+import { adminAuth } from '../../config/firebase';
+import { logger } from '../../utils/logger';
 
 const router = Router();
 const apiato = new ApiatoNoSQL();
@@ -36,12 +38,58 @@ router.post('/datatable', roleGuard([UserRole.ADMIN]), apiato.datatable_aggregat
 
 
 // Create a new user (Admin only)
-router.post('/', roleGuard([UserRole.ADMIN]), apiato.createOne(
-  UserModel,
-  userValidation,
-  populationObject,
-  { customValidationCode: 400 }
-));
+router.post('/', roleGuard([UserRole.ADMIN]), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const { email, name, password, role } = req.body;
+
+    // Create user in Firebase first
+    const userRecord = await adminAuth.createUser({
+      email,
+      password,
+      displayName: name,
+      emailVerified: false
+    });
+
+    logger.info('User created in Firebase:', { uid: userRecord.uid });
+
+    // Set initial role in Firebase
+    await adminAuth.setCustomUserClaims(userRecord.uid, {
+      role: role || UserRole.USER,
+      uid: userRecord.uid
+    });
+    logger.info('Role set for user:', { uid: userRecord.uid, role: role || UserRole.USER });
+
+    // Send verification email if not verified
+    if (!userRecord.emailVerified) {
+      logger.info('Sending verification email to:', { email });
+      await adminAuth.generateEmailVerificationLink(email);
+    }
+
+    // Add Firebase UID to request body
+    req.body.firebaseUid = userRecord.uid;
+    req.body.emailVerified = userRecord.emailVerified;
+
+    // Continue with database creation using Apiato
+    await apiato.createOne(
+      UserModel,
+      userValidation,
+      populationObject,
+      { customValidationCode: 400 }
+    )(req, res, next);
+
+  } catch (error) {
+    logger.error('User creation error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'User creation failed';
+
+    return res.status(400).json({
+      error: errorMessage,
+      success: false,
+      message: 'Failed to create user',
+      code: 400,
+      data: {}
+    });
+  }
+});
 
 // Get all users with pagination (Admin only)
 router.get('/', roleGuard([UserRole.ADMIN]), apiato.getMany(
