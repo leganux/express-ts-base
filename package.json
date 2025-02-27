@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Express.js API with Apiato for Bun.js",
   "main": "src/index.ts",
+  "type": "module",
   "scripts": {
     "start": "bun run src/index.ts",
     "dev": "bun --watch run src/index.ts",
@@ -26,7 +27,6 @@
     "canvas": "^3.1.0",
     "cors": "^2.8.5",
     "docx": "^9.2.0",
-    "dotenv": "^16.3.1",
     "dropbox-sdk": "^0.1.1",
     "express": "^4.18.2",
     "firebase": "^11.3.1",
@@ -61,6 +61,8 @@
     "@types/qrcode": "^1.5.5",
     "@types/qrcode-terminal": "^0.12.2",
     "bun-types": "latest",
+    "dotenv": "^16.4.7",
+    "openai": "^4.85.4",
     "typescript": "^5.3.3"
   }
 }
