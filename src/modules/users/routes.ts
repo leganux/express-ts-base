@@ -24,6 +24,17 @@ const userValidation = {
 // Population object (empty since we don't have relations yet)
 const populationObject = {};
 
+
+
+// Create datatable method
+router.post('/datatable', roleGuard([UserRole.ADMIN]), apiato.datatable_aggregate(
+  UserModel,
+  [],
+  'name,email',
+  { allowDiskUse: true, search_by_field: true }
+));
+
+
 // Create a new user (Admin only)
 router.post('/', roleGuard([UserRole.ADMIN]), apiato.createOne(
   UserModel,
@@ -82,5 +93,7 @@ router.get('/firebase/:firebaseUid', roleGuard([UserRole.ADMIN]), UserController
 router.patch('/:id/last-login', UserController.updateLastLogin);
 router.patch('/:id/email-verification', roleGuard([UserRole.ADMIN]), UserController.updateEmailVerification);
 router.patch('/:id/role', roleGuard([UserRole.ADMIN]), UserController.updateRole);
+
+
 
 export default router;
