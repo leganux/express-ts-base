@@ -4,8 +4,7 @@ import { cert, initializeApp as initializeAdminApp, getApps as getAdminApps } fr
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 import { validateEnv } from './env.validator';
 import { logger } from '../utils/logger';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+
 
 const config = validateEnv();
 
@@ -39,26 +38,20 @@ export const auth = getAuth(app);
 // Initialize Firebase Admin SDK
 try {
   if (getAdminApps().length === 0) {
-    const serviceAccountPath = join(__dirname, 'leganux-login-firebase-adminsdk-fbsvc-f833ae8622.json');
-    logger.debug('Loading service account from:', serviceAccountPath);
-    
-    const serviceAccount = JSON.parse(
-      readFileSync(serviceAccountPath, 'utf8')
-    );
-    
+
     logger.debug('Service account loaded successfully');
-    
+
     const adminApp = initializeAdminApp({
       credential: cert({
-        projectId: serviceAccount.project_id,
-        clientEmail: serviceAccount.client_email,
-        privateKey: serviceAccount.private_key
+        projectId: config.FIREBASE_ADMIN_PROJECT_ID,
+        clientEmail: config.FIREBASE_ADMIN_CLIENT_EMAIL,
+        privateKey: config.FIREBASE_ADMIN_PRIVATE_KEY
       }),
-      projectId: serviceAccount.project_id,
-      databaseURL: `https://${serviceAccount.project_id}.firebaseio.com`
+      projectId: config.FIREBASE_ADMIN_PROJECT_ID,
+      databaseURL: `https://${config.FIREBASE_ADMIN_PROJECT_ID}.firebaseio.com`
     });
-    
-    logger.info('Firebase Admin SDK initialized successfully with project:', serviceAccount.project_id);
+
+    logger.info('Firebase Admin SDK initialized successfully with project:', config.FIREBASE_ADMIN_PROJECT_ID);
   }
 } catch (error) {
   logger.error('Error initializing Firebase Admin SDK:', error);
