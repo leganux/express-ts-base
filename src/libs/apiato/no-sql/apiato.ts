@@ -933,7 +933,7 @@ export class ApiatoNoSQL {
     }, fIn?: any, fOut?: any): MongooseRequestHandler {
         return async function (req: any, res: any) {
             let pipeline2: any[] = []
-            let pipeline = initialPipeline.length > 0 ? [...initialPipeline] : [{$match: {}}]
+            let pipeline = initialPipeline.length > 0 ? [...initialPipeline] : [{ $match: {} }]
 
             try {
                 let response = {
@@ -946,7 +946,6 @@ export class ApiatoNoSQL {
                 };
 
                 let body = req.body
-                console.log('body', body);
 
 
                 if (fIn && typeof fIn === 'function') {
@@ -1036,8 +1035,8 @@ export class ApiatoNoSQL {
                     })
                 }
 
-                console.log('pipeline', pipeline);
-                
+
+
 
                 let table = await model.aggregate(pipeline).allowDiskUse(options.allowDiskUse)
                 let total = table.length
@@ -1055,7 +1054,7 @@ export class ApiatoNoSQL {
                     $sort: order
                 })
 
-                console.log('pipeline2', pipeline2);
+
                 let table2 = await model.aggregate(pipeline2).allowDiskUse(options.allowDiskUse)
 
                 response.data = table2
@@ -1087,7 +1086,7 @@ export class ApiatoNoSQL {
      */
     aggregate(model: Model<any>, initialPipeline: any[] = [], options: any = { allowDiskUse: true }, fIn?: any, fMid?: any, fOut?: any): MongooseRequestHandler {
         return async function (req: any, res: any) {
-            let pipeline = initialPipeline.length > 0 ? [...initialPipeline] : [{$match: {}}]
+            let pipeline = initialPipeline.length > 0 ? [...initialPipeline] : [{ $match: {} }]
             try {
                 let response = {
                     error: '',

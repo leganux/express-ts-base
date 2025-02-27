@@ -2,14 +2,35 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
 import path from 'path';
+import fs from 'fs';
 import swaggerUi from 'swagger-ui-express';
 import { swaggerSpec } from './config/swagger';
-import userRoutes from './modules/users/routes';
-import authRoutes from './modules/auth/routes';
 import { connectDB } from './config/database';
 import { logger, stream } from './utils/logger';
 import { validateEnv } from './config/env.validator';
+import PluginLoader from './utils/plugin-loader';
 
+// Function to automatically load routes from modules
+const loadModuleRoutes = (app: express.Application) => {
+  const modulesPath = path.join(__dirname, 'modules');
+
+  // Read all directories in modules folder
+  const modules = fs.readdirSync(modulesPath).filter(file => {
+    return fs.statSync(path.join(modulesPath, file)).isDirectory() && file !== '.DS_Store';
+  });
+
+  // Load routes from each module
+  for (const moduleName of modules) {
+    try {
+      const routePath = path.join(modulesPath, moduleName, 'routes');
+      const routes = require(routePath).default;
+      app.use(`/api/v1/${moduleName}`, routes);
+      logger.info(`****** Loaded routes for module: ${moduleName}`);
+    } catch (error) {
+      logger.error(`Failed to load routes for module ${moduleName}:`, error);
+    }
+  };
+};
 // Validate environment variables
 const config = validateEnv();
 
@@ -32,9 +53,8 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// Routes with v1 prefix
-app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/users', userRoutes);
+// Load module routes
+loadModuleRoutes(app);
 
 // Firebase Config Route
 app.get('/config', (_req: Request, res: Response) => {
@@ -74,46 +94,17 @@ if (config.FILE_STORAGE_TYPE === 'local') {
   });
 }
 
-// Import plugin loader
-import PluginLoader from './utils/plugin-loader';
-
 // Connect to MongoDB, load plugins and start server
 connectDB().then(async () => {
   // Initialize and load plugins
   const pluginLoader = PluginLoader.getInstance();
   await pluginLoader.loadPlugins(app);
-  
+
   app.listen(config.PORT, () => {
     logger.info(`Server is running in ${config.NODE_ENV} mode on port ${config.PORT}`);
     logger.info(`API Documentation: http://localhost:${config.PORT}/api-docs`);
-    
-    // Log available endpoints
-    logger.info('Available endpoints:');
-    logger.info('Authentication:');
-    logger.info('  POST /api/v1/auth/register');
-    logger.info('  POST /api/v1/auth/login');
-    logger.info('  POST /api/v1/auth/google');
-    logger.info('  POST /api/v1/auth/reset-password');
-    logger.info('  GET  /api/v1/auth/verify');
-    logger.info('  POST /api/v1/auth/set-role (Admin only)');
-    
-    logger.info('Users:');
-    logger.info('  GET  /api/v1/users');
-    logger.info('  GET  /api/v1/users/me');
-    logger.info('  GET  /api/v1/users/:id');
-    logger.info('  PUT  /api/v1/users/me');
-    logger.info('  DELETE /api/v1/users/:id');
 
-    logger.info('Files:');
-    logger.info('  POST /api/v1/files/upload');
-    logger.info('  POST /api/v1/files/upload-many');
-    logger.info('  DELETE /api/v1/files/:filepath');
-    logger.info('  GET /api/v1/files/view/:id');
 
-    logger.info('Email:');
-    logger.info('  POST /api/v1/email/send');
-    logger.info('  POST /api/v1/email/send-template');
-    logger.info('  POST /api/v1/email/send-with-attachment');
   });
 }).catch(error => {
   logger.error('Failed to start server:', error);

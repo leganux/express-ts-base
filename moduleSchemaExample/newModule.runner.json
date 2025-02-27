@@ -1,0 +1,118 @@
+{
+    "version": "0.0.0",
+    "name": "product",
+    "namePlural": "products",
+    "NamePlural": "Products",
+    "Name": "Product",
+    "path": "product",
+    "schema": {
+        "name": "string",
+        "price": "number",
+        "description": "string",
+        "image": "string",
+        "category": "relationship:category:array",
+        "stock": "number",
+        "rating": "number",
+        "numReviews": "number",
+        "countInStock": "number",
+        "brand": "relationship:brand:single",
+        "type": "enum",
+        "active": "boolean",
+        "createdAt": "string",
+        "updatedAt": "string"
+    },
+    "ui": {
+        "name": {
+            "type": "text",
+            "label": "Name",
+            "placeholder": "Enter name",
+            "required": true
+        },
+        "price": {
+            "type": "number",
+            "label": "Price",
+            "placeholder": "Enter price",
+            "required": true
+        },
+        "description": {
+            "type": "textarea",
+            "label": "Description",
+            "placeholder": "Enter description",
+            "required": true
+        },
+        "image": {
+            "type": "picture",
+            "label": "Image",
+            "placeholder": "Enter image",
+            "required": true
+        },
+        "category": {
+            "type": "relationship-multiple",
+            "label": "Categories",
+            "placeholder": "Enter category",
+            "api-ref": "category",
+            "required": false
+        },
+        "stock": {
+            "type": "number",
+            "label": "Stock",
+            "placeholder": "Enter stock",
+            "required": true
+        },
+        "rating": {
+            "type": "number",
+            "label": "Rating",
+            "placeholder": "Enter rating",
+            "required": true
+        },
+        "numReviews": {
+            "type": "number",
+            "label": "NumReviews",
+            "placeholder": "Enter numReviews",
+            "required": true
+        },
+        "countInStock": {
+            "type": "number",
+            "label": "CountInStock",
+            "placeholder": "Enter countInStock",
+            "required": true
+        },
+        "brand": {
+            "type": "relationship-single",
+            "label": "Brand",
+            "placeholder": "Enter brand",
+            "api-ref": "brand",
+            "required": false
+        },
+        "createdAt": {
+            "type": "text",
+            "label": "CreatedAt",
+            "placeholder": "Enter createdAt",
+            "required": true
+        },
+        "updatedAt": {
+            "type": "text",
+            "label": "UpdatedAt",
+            "placeholder": "Enter updatedAt",
+            "required": true
+        },
+        "type": {
+            "type": "enum",
+            "label": "Type",
+            "placeholder": "Select type",
+            "options": [
+                "type1",
+                "type2",
+                "type3"
+            ],
+            "required": false
+        },
+        "active": {
+            "type": "boolean",
+            "label": "Active",
+            "required": true
+        }
+    }
+}
+
+

@@ -11,7 +11,8 @@
     "swagger:watch": "bun --watch run src/scripts/generate-swagger.ts",
     "generate:module": "bun run src/libs/apiato/scripts/generate.ts",
     "generate:plugin": "bun run src/libs/apiato/scripts/generate-plugin.ts",
-    "generate:socket": "bun run src/libs/apiato/scripts/generate-socket.ts"
+    "generate:socket": "bun run src/libs/apiato/scripts/generate-socket.ts",
+    "generate:template": "node scripts/generator.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.750.0",
