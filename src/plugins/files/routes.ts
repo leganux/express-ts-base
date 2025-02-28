@@ -5,6 +5,15 @@ import { Express } from 'express';
 import path from 'path';
 import fs from 'fs/promises';
 
+interface FileInfo {
+  path: string;
+  stats: {
+    size: number;
+    created: Date;
+    modified: Date;
+  };
+}
+
 const router = Router();
 
 /**
@@ -202,6 +211,51 @@ router.post('/upload-many',
  *       404:
  *         description: File not found
  */
+/**
+ * @swagger
+ * /api/v1/files:
+ *   get:
+ *     tags:
+ *       - Files
+ *     summary: List all files
+ *     security:
+ *       - BearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of files retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/',
+  validateFirebaseToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const storageService = (req.app as Express).locals.storageService;
+      const files = await storageService.listFiles();
+      
+      res.json({
+        error: null,
+        success: true,
+        message: 'Files listed successfully',
+        code: 200,
+        data: files.map((file: FileInfo) => ({
+          ...file,
+          path: path.relative(storageService.getUploadPath(), file.path)
+        }))
+      });
+    } catch (error) {
+      logger.error('Error listing files:', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to list files',
+        success: false,
+        message: 'Failed to list files',
+        code: 500,
+        data: {}
+      });
+    }
+  }
+);
+
 router.delete('/:filepath',
   validateFirebaseToken,
   async (req: AuthRequest, res: Response) => {
@@ -267,12 +321,11 @@ router.get('/view/:id',
       const storageService = (req.app as Express).locals.storageService;
       
       if (storageService.getStorageType() === 'local') {
-        const filePath = path.join(process.env.FILE_UPLOAD_PATH!, id);
+        // Try to find the file by walking through year/month directories
+        const files = await storageService.listFiles();
+        const file = files.find((f: FileInfo) => path.basename(f.path) === id);
         
-        try {
-          await fs.access(filePath); // Check if file exists
-          res.sendFile(filePath);
-        } catch (error) {
+        if (!file) {
           return res.status(404).json({
             error: 'File not found',
             success: false,
@@ -281,9 +334,26 @@ router.get('/view/:id',
             data: {}
           });
         }
+        
+        res.sendFile(file.path);
       } else {
+        // For S3, we need to find the correct year/month path
+        const files = await storageService.listFiles();
+        const file = files.find((f: FileInfo) => path.basename(f.path) === id);
+        
+        if (!file) {
+          return res.status(404).json({
+            error: 'File not found',
+            success: false,
+            message: 'The requested file does not exist',
+            code: 404,
+            data: {}
+          });
+        }
+
         const { bucket, region } = storageService.getS3Config();
-        const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/uploads/${id}`;
+        const relativePath = path.relative(storageService.getUploadPath(), file.path);
+        const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${relativePath}`;
         res.redirect(s3Url);
       }
     } catch (error) {
