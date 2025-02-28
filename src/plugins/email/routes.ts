@@ -7,7 +7,7 @@ const router = Router();
 
 /**
  * @swagger
- * /api/v1/email/send:
+ * /email/send:
  *   post:
  *     tags:
  *       - Email
@@ -96,7 +96,7 @@ router.post('/send',
 
 /**
  * @swagger
- * /api/v1/email/send-template:
+ * /email/send-template:
  *   post:
  *     tags:
  *       - Email
@@ -190,7 +190,7 @@ router.post('/send-template',
 
 /**
  * @swagger
- * /api/v1/email/send-with-attachment:
+ * /email/send-with-attachment:
  *   post:
  *     tags:
  *       - Email
