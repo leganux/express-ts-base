@@ -4,21 +4,15 @@ import { logger } from '../../utils/logger';
 import { Express } from 'express';
 import path from 'path';
 import fs from 'fs/promises';
-
-interface FileInfo {
-  path: string;
-  stats: {
-    size: number;
-    created: Date;
-    modified: Date;
-  };
-}
+import { createReadStream } from 'fs';
+import axios from 'axios';
+import { FileModel, IFile } from './models/file.model';
 
 const router = Router();
 
 /**
  * @swagger
- * /api/v1/files/upload:
+ * /files/single:
  *   post:
  *     tags:
  *       - Files
@@ -45,11 +39,11 @@ const router = Router();
  *       401:
  *         description: Unauthorized
  */
-router.post('/upload',
+router.post('/single',
   validateFirebaseToken,
   async (req: AuthRequest, res: Response) => {
     const storageService = (req.app as Express).locals.storageService;
-    
+
     storageService.upload.single('file')(req, res, async (err: any) => {
       if (err) {
         logger.error('Error in file upload middleware:', err);
@@ -102,11 +96,11 @@ router.post('/upload',
 
 /**
  * @swagger
- * /api/v1/files/upload-many:
+ * /files/multi:
  *   post:
  *     tags:
  *       - Files
- *     summary: Upload multiple files
+ *     summary: Upload multiple files (up to 10)
  *     security:
  *       - BearerAuth: []
  *     requestBody:
@@ -131,12 +125,12 @@ router.post('/upload',
  *       401:
  *         description: Unauthorized
  */
-router.post('/upload-many',
+router.post('/multi',
   validateFirebaseToken,
   async (req: AuthRequest, res: Response) => {
     const storageService = (req.app as Express).locals.storageService;
-    
-    storageService.upload.array('files')(req, res, async (err: any) => {
+
+    storageService.upload.array('files', 10)(req, res, async (err: any) => {
       if (err) {
         logger.error('Error in file upload middleware:', err);
         return res.status(400).json({
@@ -190,30 +184,7 @@ router.post('/upload-many',
 
 /**
  * @swagger
- * /api/v1/files/{filepath}:
- *   delete:
- *     tags:
- *       - Files
- *     summary: Delete a file
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: filepath
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: File deleted successfully
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: File not found
- */
-/**
- * @swagger
- * /api/v1/files:
+ * /files/list:
  *   get:
  *     tags:
  *       - Files
@@ -226,22 +197,17 @@ router.post('/upload-many',
  *       401:
  *         description: Unauthorized
  */
-router.get('/',
+router.get('/list',
   validateFirebaseToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const storageService = (req.app as Express).locals.storageService;
-      const files = await storageService.listFiles();
-      
+      const files = await FileModel.find().sort({ createdAt: -1 });
       res.json({
         error: null,
         success: true,
         message: 'Files listed successfully',
         code: 200,
-        data: files.map((file: FileInfo) => ({
-          ...file,
-          path: path.relative(storageService.getUploadPath(), file.path)
-        }))
+        data: files
       });
     } catch (error) {
       logger.error('Error listing files:', error);
@@ -256,19 +222,185 @@ router.get('/',
   }
 );
 
-router.delete('/:filepath',
+/**
+ * @swagger
+ * /files/view/{id}:
+ *   get:
+ *     tags:
+ *       - Files
+ *     summary: View/download a file
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: File streamed successfully
+ *       404:
+ *         description: File not found
+ *       500:
+ *         description: Error streaming file
+ */
+router.get('/view/:id',
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const file = await FileModel.findById(id);
+      const storageService = (req.app as Express).locals.storageService;
+
+      if (!file) {
+        return res.status(404).json({
+          error: 'File not found',
+          success: false,
+          message: 'The requested file does not exist',
+          code: 404,
+          data: {}
+        });
+      }
+
+      try {
+        if (storageService.getStorageType() === 'local') {
+          res.setHeader('Content-Type', file.mimeType);
+          res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
+          const fileStream = createReadStream(file.path);
+          fileStream.on('error', (error) => {
+            logger.error('Error reading file stream:', error);
+            res.status(500).json({
+              error: 'Failed to read file',
+              success: false,
+              message: 'Failed to read file from storage',
+              code: 500,
+              data: {}
+            });
+          });
+          fileStream.pipe(res);
+        } else {
+          // For S3, download the file and stream it
+          const signedUrl = await storageService.getFileUrl(file.path);
+          const response = await axios.get(signedUrl, { 
+            responseType: 'stream',
+            validateStatus: function (status) {
+              return status >= 200 && status < 300;
+            }
+          });
+          res.setHeader('Content-Type', file.mimeType);
+          res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
+          response.data.pipe(res);
+        }
+      } catch (streamError) {
+        logger.error('Error streaming file:', streamError);
+        res.status(500).json({
+          error: 'Failed to stream file',
+          success: false,
+          message: 'Failed to stream file from storage',
+          code: 500,
+          data: {}
+        });
+      }
+    } catch (error) {
+      logger.error('Error viewing file:', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to view file',
+        success: false,
+        message: 'Failed to view file',
+        code: 500,
+        data: {}
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /files/{id}:
+ *   get:
+ *     tags:
+ *       - Files
+ *     summary: Get file details
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: File details retrieved successfully
+ *       404:
+ *         description: File not found
+ */
+router.get('/:id',
   validateFirebaseToken,
   async (req: AuthRequest, res: Response) => {
     try {
-      const { filepath } = req.params;
-      const storageService = (req.app as Express).locals.storageService;
-      
-      await storageService.deleteFile(decodeURIComponent(filepath));
+      const { id } = req.params;
+      const file = await FileModel.findById(id);
 
-      logger.info('File deleted successfully:', {
-        user: req.user?.uid,
-        filepath
+      if (!file) {
+        return res.status(404).json({
+          error: 'File not found',
+          success: false,
+          message: 'The requested file does not exist',
+          code: 404,
+          data: {}
+        });
+      }
+
+      res.json({
+        error: null,
+        success: true,
+        message: 'File details retrieved successfully',
+        code: 200,
+        data: file
       });
+    } catch (error) {
+      logger.error('Error getting file details:', error);
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Failed to get file details',
+        success: false,
+        message: 'Failed to get file details',
+        code: 500,
+        data: {}
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /files/{id}:
+ *   delete:
+ *     tags:
+ *       - Files
+ *     summary: Delete a file
+ *     security:
+ *       - BearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: File deleted successfully
+ *       404:
+ *         description: File not found
+ */
+router.delete('/:id',
+  validateFirebaseToken,
+  async (req: AuthRequest, res: Response) => {
+    try {
+      const { id } = req.params;
+      const storageService = (req.app as Express).locals.storageService;
+
+      await storageService.deleteFile(id);
 
       res.json({
         error: null,
@@ -283,85 +415,6 @@ router.delete('/:filepath',
         error: error instanceof Error ? error.message : 'File deletion failed',
         success: false,
         message: 'Failed to delete file',
-        code: 500,
-        data: {}
-      });
-    }
-  }
-);
-
-/**
- * @swagger
- * /api/v1/files/view/{id}:
- *   get:
- *     tags:
- *       - Files
- *     summary: View a file
- *     security:
- *       - BearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *     responses:
- *       200:
- *         description: File retrieved successfully
- *       401:
- *         description: Unauthorized
- *       404:
- *         description: File not found
- */
-router.get('/view/:id',
-  validateFirebaseToken,
-  async (req: AuthRequest, res: Response) => {
-    try {
-      const { id } = req.params;
-      const storageService = (req.app as Express).locals.storageService;
-      
-      if (storageService.getStorageType() === 'local') {
-        // Try to find the file by walking through year/month directories
-        const files = await storageService.listFiles();
-        const file = files.find((f: FileInfo) => path.basename(f.path) === id);
-        
-        if (!file) {
-          return res.status(404).json({
-            error: 'File not found',
-            success: false,
-            message: 'The requested file does not exist',
-            code: 404,
-            data: {}
-          });
-        }
-        
-        res.sendFile(file.path);
-      } else {
-        // For S3, we need to find the correct year/month path
-        const files = await storageService.listFiles();
-        const file = files.find((f: FileInfo) => path.basename(f.path) === id);
-        
-        if (!file) {
-          return res.status(404).json({
-            error: 'File not found',
-            success: false,
-            message: 'The requested file does not exist',
-            code: 404,
-            data: {}
-          });
-        }
-
-        const { bucket, region } = storageService.getS3Config();
-        const relativePath = path.relative(storageService.getUploadPath(), file.path);
-        const s3Url = `https://${bucket}.s3.${region}.amazonaws.com/${relativePath}`;
-        res.redirect(s3Url);
-      }
-    } catch (error) {
-      logger.error('Error viewing file:', error);
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Failed to view file',
-        success: false,
-        message: 'Failed to view file',
         code: 500,
         data: {}
       });

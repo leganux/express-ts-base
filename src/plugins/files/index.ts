@@ -1,12 +1,15 @@
 import { IPlugin } from '../../types/plugin';
 import { Express, Request } from 'express';
 import { validateFilesEnv } from './validation/env';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand, DeleteObjectCommand, ListObjectsV2Command, GetObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import multer from 'multer';
 import path from 'path';
 import fs from 'fs/promises';
 import { logger } from '../../utils/logger';
 import routes from './routes';
+import { v4 as uuidv4 } from 'uuid';
+import { FileModel, IFile } from './models/file.model';
 
 export class StorageService {
   private s3Client: S3Client | null;
@@ -68,8 +71,9 @@ export class StorageService {
         }
       },
       filename: (_req: Request, file: Express.Multer.File, cb) => {
-        const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1E9)}`;
-        cb(null, `${file.fieldname}-${uniqueSuffix}${path.extname(file.originalname)}`);
+        const uuid = uuidv4();
+        const ext = path.extname(file.originalname);
+        cb(null, `${uuid}${ext}`);
       }
     });
   }
@@ -84,11 +88,24 @@ export class StorageService {
     }
   };
 
-  private async uploadToS3(file: Express.Multer.File): Promise<string> {
+  private async getSignedUrl(key: string): Promise<string> {
+    if (!this.s3Client) throw new Error('S3 client not initialized');
+    
+    const command = new GetObjectCommand({
+      Bucket: this.config.AWS_S3_BUCKET,
+      Key: key,
+    });
+
+    return await getSignedUrl(this.s3Client, command, { expiresIn: 3600 }); // URL expires in 1 hour
+  }
+
+  private async uploadToS3(file: Express.Multer.File): Promise<{ url: string; key: string }> {
     if (!this.s3Client) throw new Error('S3 client not initialized');
 
     const { year, month } = this.getYearMonthPath();
-    const key = `${year}/${month}/${Date.now()}-${file.originalname}`;
+    const uuid = uuidv4();
+    const ext = path.extname(file.originalname);
+    const key = `uploads/${year}/${month}/${uuid}${ext}`;
     
     try {
       await this.s3Client.send(new PutObjectCommand({
@@ -99,7 +116,9 @@ export class StorageService {
       }));
 
       logger.info('File uploaded to S3:', { key });
-      return `https://${this.config.AWS_S3_BUCKET}.s3.${this.config.AWS_REGION}.amazonaws.com/${key}`;
+      // Return signed URL for immediate access
+      const url = await this.getSignedUrl(key);
+      return { url, key };
     } catch (error) {
       logger.error('Error uploading to S3:', error);
       throw error;
@@ -110,32 +129,8 @@ export class StorageService {
     return path.join(this.config.FILE_UPLOAD_PATH, filename);
   }
 
-  async listFiles(): Promise<{ path: string; stats: any }[]> {
-    const files: { path: string; stats: any }[] = [];
-    
-    async function walkDir(dir: string) {
-      const entries = await fs.readdir(dir, { withFileTypes: true });
-      
-      for (const entry of entries) {
-        const fullPath = path.join(dir, entry.name);
-        if (entry.isDirectory()) {
-          await walkDir(fullPath);
-        } else {
-          const stats = await fs.stat(fullPath);
-          files.push({ 
-            path: fullPath,
-            stats: {
-              size: stats.size,
-              created: stats.birthtime,
-              modified: stats.mtime
-            }
-          });
-        }
-      }
-    }
-
-    await walkDir(this.config.FILE_UPLOAD_PATH);
-    return files;
+  async listFiles(): Promise<IFile[]> {
+    return await FileModel.find().sort({ createdAt: -1 });
   }
 
   private async deleteFromS3(key: string): Promise<void> {
@@ -163,35 +158,41 @@ export class StorageService {
     }
   }
 
-  async handleSingleUpload(file: Express.Multer.File): Promise<string> {
+  async handleSingleUpload(file: Express.Multer.File): Promise<IFile> {
     try {
       const { year, month } = this.getYearMonthPath();
+      let filePath: string;
+      let fileName: string;
+
       if (this.config.FILE_STORAGE_TYPE === 's3') {
-        return await this.uploadToS3(file);
+        const { url, key } = await this.uploadToS3(file);
+        filePath = key; // Store the S3 key in path for consistent access
+        fileName = path.basename(key);
       } else {
-        // Return just the filename for API compatibility, but store in year/month structure
         await this.ensureDirectoryExists(path.join(this.config.FILE_UPLOAD_PATH, year, month));
-        return file.filename;
+        filePath = file.path;
+        fileName = file.filename;
       }
+
+      const fileDoc = await FileModel.create({
+        originalName: file.originalname,
+        fileName: fileName,
+        extension: path.extname(file.originalname),
+        path: filePath,
+        mimeType: file.mimetype,
+        size: file.size,
+      });
+
+      return fileDoc;
     } catch (error) {
       logger.error('Error handling single file upload:', error);
       throw error;
     }
   }
 
-  async handleMultipleUploads(files: Express.Multer.File[]): Promise<string[]> {
+  async handleMultipleUploads(files: Express.Multer.File[]): Promise<IFile[]> {
     try {
-      const { year, month } = this.getYearMonthPath();
-      const uploadPromises = files.map(async file => {
-        if (this.config.FILE_STORAGE_TYPE === 's3') {
-          return await this.uploadToS3(file);
-        } else {
-          // Return just the filename for API compatibility, but store in year/month structure
-          await this.ensureDirectoryExists(path.join(this.config.FILE_UPLOAD_PATH, year, month));
-          return file.filename;
-        }
-      });
-
+      const uploadPromises = files.map(file => this.handleSingleUpload(file));
       return await Promise.all(uploadPromises);
     } catch (error) {
       logger.error('Error handling multiple file uploads:', error);
@@ -199,18 +200,36 @@ export class StorageService {
     }
   }
 
-  async deleteFile(filepath: string): Promise<void> {
+  async deleteFile(fileId: string): Promise<void> {
     try {
+      const file = await FileModel.findById(fileId);
+      if (!file) {
+        throw new Error('File not found');
+      }
+
       if (this.config.FILE_STORAGE_TYPE === 's3') {
-        const key = filepath.split('.com/')[1];
+        const key = file.path.includes('.com/') 
+          ? file.path.split('.com/')[1] 
+          : file.path.startsWith('uploads/') ? file.path : `uploads/${file.path}`;
         await this.deleteFromS3(key);
       } else {
-        await this.deleteLocalFile(filepath);
+        await this.deleteLocalFile(file.path);
       }
+
+      await FileModel.findByIdAndDelete(fileId);
     } catch (error) {
       logger.error('Error deleting file:', error);
       throw error;
     }
+  }
+
+  async getFileUrl(key: string): Promise<string> {
+    if (this.config.FILE_STORAGE_TYPE === 's3') {
+      // For S3, generate a signed URL
+      return await this.getSignedUrl(key);
+    }
+    // For local files, return the file path
+    return key;
   }
 
   getUploadPath(): string {
@@ -237,9 +256,29 @@ class FilesPlugin implements IPlugin {
   version = '1.0.0';
 
   async initialize(app: Express, mongoose: typeof import("mongoose")) {
-    const storageService = new StorageService(process.env);
-    app.locals.storageService = storageService;
-    app.use('/api/v1/files', routes);
+    try {
+      // Initialize MongoDB connection if not already connected
+      if (mongoose.connection.readyState === 0) {
+        await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/express-ts-base');
+      }
+
+      const storageService = new StorageService(process.env);
+
+      // Only create upload directory for local storage
+      if (storageService.getStorageType() === 'local') {
+        const uploadPath = storageService.getUploadPath();
+        await fs.mkdir(uploadPath, { recursive: true });
+        logger.info('Created local upload directory:', { uploadPath });
+      }
+
+      app.locals.storageService = storageService;
+      app.use('/api/v1/files', routes);
+
+      logger.info('Files plugin initialized successfully');
+    } catch (error) {
+      logger.error('Error initializing files plugin:', error);
+      throw error;
+    }
   }
 }
 
