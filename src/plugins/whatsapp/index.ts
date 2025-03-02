@@ -7,10 +7,8 @@ import makeWASocket, {
     downloadMediaMessage,
     proto
 } from '@whiskeysockets/baileys';
-import QRCode from 'qrcode';
+
 import { Boom } from '@hapi/boom';
-import { Server as SocketServer } from 'socket.io';
-import { Server } from 'http';
 import * as qrcode from 'qrcode-terminal';
 import { join } from 'path';
 import { writeFile, mkdir } from 'fs/promises';
@@ -19,43 +17,29 @@ import { WhatsAppChat } from './models/chat.model';
 import routes from './routes';
 
 class WhatsAppService {
-    private socket: SocketServer | null = null;
     private store = makeInMemoryStore({});
     private client: any = null;
     private currentQR: string | null = null;
     private storageService: any;
+    private connectionState: 'connecting' | 'connected' | 'disconnected' = 'disconnected';
 
     isConnected(): boolean {
-        return this.client !== null;
+        return this.connectionState === 'connected';
     }
 
     getCurrentQR(): string | null {
         return this.currentQR;
     }
 
-    constructor(app: Express, server?: Server) {
-        this.storageService = app.locals.storageService;
-        
-        if (server) {
-            this.socket = new SocketServer(server, {
-                cors: {
-                    origin: '*'
-                }
-            });
-            this.setupSocketEvents();
-        }
+    async getState() {
+        return {
+            connected: this.connectionState === 'connected',
+            state: this.connectionState
+        };
     }
 
-    private setupSocketEvents() {
-        if (!this.socket) return;
-
-        this.socket.on('connection', (socket) => {
-            console.log('Client connected to WhatsApp socket');
-
-            socket.on('disconnect', () => {
-                console.log('Client disconnected from WhatsApp socket');
-            });
-        });
+    constructor(app: Express) {
+        this.storageService = app.locals.storageService;
     }
 
     private async saveMedia(message: any, type: string): Promise<string> {
@@ -98,40 +82,53 @@ class WhatsAppService {
     }
 
     async connect(): Promise<void> {
-        const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-        
-        this.client = makeWASocket({
-            printQRInTerminal: true,
-            auth: state,
-        });
+        try {
+            this.connectionState = 'connecting';
+            const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+            
+            this.client = makeWASocket({
+                printQRInTerminal: true,
+                auth: state,
+            });
 
-        this.store.bind(this.client.ev);
+            this.store.bind(this.client.ev);
 
-        this.client.ev.on('connection.update', async (update: any) => {
-            const { connection, lastDisconnect, qr } = update;
+            this.client.ev.on('connection.update', async (update: any) => {
+                const { connection, lastDisconnect, qr } = update;
 
-            if (qr) {
-                this.currentQR = qr;
-                // Emit QR code to socket clients
-                this.socket?.emit('whatsapp:qr', qr);
-                qrcode.generate(qr, { small: true });
-            }
-
-            if (connection === 'close') {
-                const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-                if (shouldReconnect) {
-                    await this.connect();
+                if (qr) {
+                    console.log('New QR code received');
+                    this.currentQR = qr;
+                    this.connectionState = 'disconnected';
+                    qrcode.generate(qr, { small: true });
                 }
-            }
 
-            if (connection === 'open') {
-                console.log('WhatsApp connected!');
-                this.socket?.emit('whatsapp:connected');
-                this.setupMessageHandler();
-            }
-        });
+                if (connection === 'close') {
+                    this.connectionState = 'disconnected';
+                    this.currentQR = null;
+                    const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
+                    if (shouldReconnect) {
+                        console.log('Connection closed, attempting to reconnect...');
+                        await this.connect();
+                    } else {
+                        console.log('Connection closed, logged out');
+                    }
+                }
 
-        this.client.ev.on('creds.update', saveCreds);
+                if (connection === 'open') {
+                    console.log('WhatsApp connected successfully!');
+                    this.connectionState = 'connected';
+                    this.currentQR = null;
+                    this.setupMessageHandler();
+                }
+            });
+
+            this.client.ev.on('creds.update', saveCreds);
+        } catch (error) {
+            console.error('Error in connect:', error);
+            this.connectionState = 'disconnected';
+            throw error;
+        }
     }
 
     private setupMessageHandler() {
@@ -150,29 +147,31 @@ class WhatsAppService {
                     mediaUrl = await this.saveMedia(msg.message, 'webp');
                 }
 
-                const messageData = {
-                    messageId: msg.key.id,
-                    from: msg.key.remoteJid,
-                    type: Object.keys(msg.message || {})[0],
-                    content: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '',
-                    mediaUrl,
-                    timestamp: msg.messageTimestamp,
-                };
+                try {
+                    const messageData = {
+                        messageId: msg.key.id,
+                        from: msg.key.remoteJid,
+                        type: Object.keys(msg.message || {})[0],
+                        content: msg.message?.conversation || msg.message?.extendedTextMessage?.text || '',
+                        mediaUrl,
+                        timestamp: msg.messageTimestamp,
+                    };
 
-                // Store message in database
-                await WhatsAppMessage.create(messageData);
+                    // Store message in database
+                    await WhatsAppMessage.create(messageData);
 
-                // Update or create chat
-                await WhatsAppChat.findOneAndUpdate(
-                    { jid: msg.key.remoteJid },
-                    {
-                        lastMessageTimestamp: msg.messageTimestamp,
-                        $inc: { unreadCount: 1 }
-                    },
-                    { upsert: true }
-                );
-
-                this.socket?.emit('whatsapp:message', messageData);
+                    // Update or create chat
+                    await WhatsAppChat.findOneAndUpdate(
+                        { jid: msg.key.remoteJid },
+                        {
+                            lastMessageTimestamp: msg.messageTimestamp,
+                            $inc: { unreadCount: 1 }
+                        },
+                        { upsert: true }
+                    );
+                } catch (error) {
+                    console.error('Error handling incoming message:', error);
+                }
             }
         });
     }
@@ -188,7 +187,9 @@ class WhatsAppService {
     }
 
     async sendMessage(to: string, content: string, type: 'text' | 'image' | 'video' | 'audio' = 'text', mediaPath?: string) {
-        if (!this.client) throw new Error('WhatsApp client not initialized');
+        if (!this.client || !this.isConnected()) {
+            throw new Error('WhatsApp is not connected');
+        }
 
         try {
             let message: any = {};
@@ -217,8 +218,20 @@ class WhatsAppService {
                     break;
             }
 
-            await this.client.sendMessage(to, message);
-            return true;
+            const result = await this.client.sendMessage(to, message);
+            
+            // Create message record
+            const messageData = {
+                messageId: result.key.id,
+                from: 'me',
+                to,
+                type,
+                content,
+                mediaUrl: mediaPath,
+                timestamp: Date.now(),
+            };
+
+            return await WhatsAppMessage.create(messageData);
         } catch (error) {
             console.error('Error sending message:', error);
             throw error;
@@ -231,10 +244,14 @@ class WhatsAppPlugin implements IPlugin {
     version = '1.0.0';
 
     async initialize(app: Express, mongoose: typeof import("mongoose")) {
+        // Initialize WhatsApp service
         const whatsappService = new WhatsAppService(app);
         await whatsappService.connect();
         app.locals.whatsappService = whatsappService;
-        app.use('/api/v1/whatsapp', routes);
+
+        // Set up routes
+        const router = routes();
+        app.use('/api/v1/whatsapp', router);
     }
 }
 

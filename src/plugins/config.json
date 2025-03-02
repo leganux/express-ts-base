@@ -26,9 +26,9 @@
   "whatsapp": {
     "name": "whatsapp",
     "version": "1.0.0",
-    "enabled": false,
+    "enabled": true,
     "config": {
-      "routes": "/api/whatsapp"
+      "routes": "/api/v1/whatsapp"
     }
   },
   "openpay": {

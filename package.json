@@ -48,6 +48,7 @@
     "stripe": "^17.6.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.4.0",
     "winston": "^3.17.0",
     "xlsx": "^0.18.5",
     "zod": "^3.24.2"

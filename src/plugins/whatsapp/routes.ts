@@ -1,24 +1,43 @@
 import { Router } from 'express';
-import WhatsAppPlugin from './index';
 import { Server } from 'http';
 import QRCode from 'qrcode';
+import { WhatsAppChat } from './models/chat.model';
 
-export default function whatsappRoutes(server: Server) {
+export default function whatsappRoutes(server?: Server) {
     const router = Router();
-    const whatsapp = new WhatsAppPlugin(server);
 
-    // Initialize WhatsApp connection
-    whatsapp.connect().catch(console.error);
+    // Get connection status and QR if needed
+    router.get('/status', async (req, res) => {
+        try {
+            const whatsappService = req.app.locals.whatsappService;
+            if (!whatsappService) {
+                return res.status(503).json({ status: 'error', message: 'WhatsApp service not initialized' });
+            }
+
+            const state = await whatsappService.getState();
+
+
+            // Return both state and QR code if available
+            return res.json({
+                status: state.connected ? 'connected' : 'disconnected',
+                state: state.state
+            });
+        } catch (error) {
+            console.error('Error in /status route:', error);
+            res.status(500).json({ status: 'error', message: 'Internal server error' });
+        }
+    });
 
     // Get QR code as HTML page
-    router.get('/qr', async (_req, res) => {
-        const qr = whatsapp.getCurrentQR();
-        if (!qr) {
-            return res.send('<h1>WhatsApp is already connected or QR not yet generated</h1>');
-        }
-
+    router.get('/qr', async (req, res) => {
         try {
-            const qrDataUrl = await QRCode.toDataURL(qr);
+            const whatsappService = req.app.locals.whatsappService;
+            if (!whatsappService) {
+                return res.status(503).send('WhatsApp service not initialized');
+            }
+
+
+            const qrDataUrl = await QRCode.toDataURL(whatsappService.getCurrentQR());
             res.send(`
                 <!DOCTYPE html>
                 <html>
@@ -67,24 +86,51 @@ export default function whatsappRoutes(server: Server) {
                 </html>
             `);
         } catch (error) {
+            console.error('Error in /qr route:', error);
             res.status(500).send('Error generating QR code');
         }
     });
 
-    // Get QR code status and connection state
-    router.get('/status', (_req, res) => {
-        if (!whatsapp.isConnected()) {
-            return res.status(503).json({ status: 'disconnected' });
+    // Update chat name
+    router.put('/chat/:jid/name', async (req, res) => {
+        try {
+            const whatsappService = req.app.locals.whatsappService;
+            if (!whatsappService) {
+                return res.status(503).json({ error: 'WhatsApp service not initialized' });
+            }
+
+            const { jid } = req.params;
+            const { name } = req.body;
+
+            if (!name) {
+                return res.status(400).json({ error: 'Name is required' });
+            }
+
+            await WhatsAppChat.findOneAndUpdate(
+                { jid },
+                { name },
+                { upsert: true }
+            );
+
+            res.json({ success: true });
+        } catch (error) {
+            console.error('Error updating chat name:', error);
+            res.status(500).json({ error: 'Failed to update chat name' });
         }
-        res.json({ status: 'connected' });
     });
 
     // Get all chats
-    router.get('/chats', async (_req, res) => {
+    router.get('/chats', async (req, res) => {
         try {
-            const chats = await whatsapp.getChats();
+            const whatsappService = req.app.locals.whatsappService;
+            if (!whatsappService) {
+                return res.status(503).json({ error: 'WhatsApp service not initialized' });
+            }
+
+            const chats = await whatsappService.getChats();
             res.json(chats);
         } catch (error) {
+            console.error('Error in /chats route:', error);
             res.status(500).json({ error: 'Failed to get chats' });
         }
     });
@@ -92,9 +138,15 @@ export default function whatsappRoutes(server: Server) {
     // Get messages from a specific chat
     router.get('/messages/:jid', async (req, res) => {
         try {
-            const messages = await whatsapp.getMessages(req.params.jid);
+            const whatsappService = req.app.locals.whatsappService;
+            if (!whatsappService) {
+                return res.status(503).json({ error: 'WhatsApp service not initialized' });
+            }
+
+            const messages = await whatsappService.getMessages(req.params.jid);
             res.json(messages);
         } catch (error) {
+            console.error('Error in /messages route:', error);
             res.status(500).json({ error: 'Failed to get messages' });
         }
     });
@@ -102,15 +154,21 @@ export default function whatsappRoutes(server: Server) {
     // Send a message
     router.post('/send', async (req, res) => {
         try {
+            const whatsappService = req.app.locals.whatsappService;
+            if (!whatsappService) {
+                return res.status(503).json({ error: 'WhatsApp service not initialized' });
+            }
+
             const { to, content, type, mediaPath } = req.body;
-            
+
             if (!to || !content) {
                 return res.status(400).json({ error: 'Missing required fields' });
             }
 
-            await whatsapp.sendMessage(to, content, type, mediaPath);
+            await whatsappService.sendMessage(to, content, type, mediaPath);
             res.json({ success: true });
         } catch (error) {
+            console.error('Error in /send route:', error);
             res.status(500).json({ error: 'Failed to send message' });
         }
     });
