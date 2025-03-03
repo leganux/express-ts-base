@@ -3,6 +3,7 @@ import mongoose from 'mongoose';
 export interface IWhatsAppMessage {
   messageId: string;
   from: string;
+  to?: string;
   type: string;
   content: string;
   mediaUrl?: string;
@@ -14,6 +15,7 @@ export interface IWhatsAppMessage {
 const WhatsAppMessageSchema = new mongoose.Schema<IWhatsAppMessage>({
   messageId: { type: String, required: true, unique: true },
   from: { type: String, required: true },
+  to: { type: String },
   type: { type: String, required: true },
   content: { type: String, default: '' },
   mediaUrl: { type: String },

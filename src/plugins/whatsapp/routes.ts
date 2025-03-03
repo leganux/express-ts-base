@@ -1,175 +1,108 @@
-import { Router } from 'express';
-import { Server } from 'http';
-import QRCode from 'qrcode';
-import { WhatsAppChat } from './models/chat.model';
+import { Router, Response } from 'express';
+import { WhatsAppController } from './controller';
+import { createReadStream } from 'fs';
+import { logger } from '../../utils/logger';
+import { WhatsAppFileModel } from './models/file.model';
+import axios from 'axios';
+import path from 'path';
 
-export default function whatsappRoutes(server?: Server) {
+export default function whatsappRoutes(service: any) {
     const router = Router();
+    const controller = new WhatsAppController(service);
 
     // Get connection status and QR if needed
-    router.get('/status', async (req, res) => {
-        try {
-            const whatsappService = req.app.locals.whatsappService;
-            if (!whatsappService) {
-                return res.status(503).json({ status: 'error', message: 'WhatsApp service not initialized' });
-            }
-
-            const state = await whatsappService.getState();
-
-
-            // Return both state and QR code if available
-            return res.json({
-                status: state.connected ? 'connected' : 'disconnected',
-                state: state.state
-            });
-        } catch (error) {
-            console.error('Error in /status route:', error);
-            res.status(500).json({ status: 'error', message: 'Internal server error' });
-        }
-    });
+    router.get('/status', (req, res) => controller.getStatus(req, res));
 
     // Get QR code as HTML page
-    router.get('/qr', async (req, res) => {
-        try {
-            const whatsappService = req.app.locals.whatsappService;
-            if (!whatsappService) {
-                return res.status(503).send('WhatsApp service not initialized');
-            }
-
-
-            const qrDataUrl = await QRCode.toDataURL(whatsappService.getCurrentQR());
-            res.send(`
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <title>WhatsApp QR Code</title>
-                    <meta name="viewport" content="width=device-width, initial-scale=1">
-                    <style>
-                        body {
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            justify-content: center;
-                            min-height: 100vh;
-                            margin: 0;
-                            background-color: #f0f2f5;
-                            font-family: Arial, sans-serif;
-                        }
-                        .container {
-                            text-align: center;
-                            padding: 20px;
-                            background: white;
-                            border-radius: 10px;
-                            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
-                        }
-                        h1 {
-                            color: #128C7E;
-                            margin-bottom: 20px;
-                        }
-                        img {
-                            max-width: 300px;
-                            height: auto;
-                        }
-                        p {
-                            color: #666;
-                            margin-top: 20px;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <h1>WhatsApp QR Code</h1>
-                        <img src="${qrDataUrl}" alt="WhatsApp QR Code">
-                        <p>Scan this QR code with WhatsApp to connect</p>
-                    </div>
-                </body>
-                </html>
-            `);
-        } catch (error) {
-            console.error('Error in /qr route:', error);
-            res.status(500).send('Error generating QR code');
-        }
-    });
+    router.get('/qr', (req, res) => controller.getQR(req, res));
 
     // Update chat name
-    router.put('/chat/:jid/name', async (req, res) => {
-        try {
-            const whatsappService = req.app.locals.whatsappService;
-            if (!whatsappService) {
-                return res.status(503).json({ error: 'WhatsApp service not initialized' });
-            }
-
-            const { jid } = req.params;
-            const { name } = req.body;
-
-            if (!name) {
-                return res.status(400).json({ error: 'Name is required' });
-            }
-
-            await WhatsAppChat.findOneAndUpdate(
-                { jid },
-                { name },
-                { upsert: true }
-            );
-
-            res.json({ success: true });
-        } catch (error) {
-            console.error('Error updating chat name:', error);
-            res.status(500).json({ error: 'Failed to update chat name' });
-        }
-    });
+    router.put('/chat/:jid/name', (req, res) => controller.updateChatName(req, res));
 
     // Get all chats
-    router.get('/chats', async (req, res) => {
-        try {
-            const whatsappService = req.app.locals.whatsappService;
-            if (!whatsappService) {
-                return res.status(503).json({ error: 'WhatsApp service not initialized' });
-            }
-
-            const chats = await whatsappService.getChats();
-            res.json(chats);
-        } catch (error) {
-            console.error('Error in /chats route:', error);
-            res.status(500).json({ error: 'Failed to get chats' });
-        }
-    });
+    router.get('/chats', (req, res) => controller.getChatsList(req, res));
 
     // Get messages from a specific chat
-    router.get('/messages/:jid', async (req, res) => {
-        try {
-            const whatsappService = req.app.locals.whatsappService;
-            if (!whatsappService) {
-                return res.status(503).json({ error: 'WhatsApp service not initialized' });
-            }
-
-            const messages = await whatsappService.getMessages(req.params.jid);
-            res.json(messages);
-        } catch (error) {
-            console.error('Error in /messages route:', error);
-            res.status(500).json({ error: 'Failed to get messages' });
-        }
-    });
+    router.get('/messages/:jid', (req, res) => controller.getMessagesList(req, res));
 
     // Send a message
-    router.post('/send', async (req, res) => {
+    router.post('/send', (req, res) => controller.sendMessageHandler(req, res));
+
+    // Send media message
+    router.post('/send-media', (req, res, next) => {
+        const storageService = service['storageService'];
+        if (!storageService) {
+            return res.status(503).json({ error: 'Storage service not initialized' });
+        }
+        storageService.upload.single('file')(req, res, async (err: any) => {
+            if (err) {
+                return res.status(400).json({ error: err.message });
+            }
+            controller.sendMediaMessageHandler(req, res);
+        });
+    });
+
+    // View/download a file
+    router.get('/view/:id', async (req: any, res: Response) => {
         try {
-            const whatsappService = req.app.locals.whatsappService;
-            if (!whatsappService) {
-                return res.status(503).json({ error: 'WhatsApp service not initialized' });
+            const { id } = req.params;
+            const file = await WhatsAppFileModel.findById(id);
+
+            if (!file) {
+                return res.status(404).json({
+                    error: 'File not found',
+                    success: false,
+                    message: 'The requested file does not exist',
+                    code: 404
+                });
             }
 
-            const { to, content, type, mediaPath } = req.body;
-
-            if (!to || !content) {
-                return res.status(400).json({ error: 'Missing required fields' });
+            try {
+                if (service.config.WHATSAPP_MEDIA_STORAGE_TYPE === 'local') {
+                    const filePath = path.join(service.config.WHATSAPP_UPLOAD_PATH, file.path);
+                    res.setHeader('Content-Type', file.mimeType);
+                    res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
+                    const fileStream = createReadStream(filePath);
+                    fileStream.on('error', (error) => {
+                        logger.error('Error reading file stream:', error);
+                        res.status(500).json({
+                            error: 'Failed to read file',
+                            success: false,
+                            message: 'Failed to read file from storage',
+                            code: 500
+                        });
+                    });
+                    fileStream.pipe(res);
+                } else {
+                    // For S3, download the file and stream it
+                    const signedUrl = await service.getFileUrl(file.path);
+                    const response = await axios.get(signedUrl, { 
+                        responseType: 'stream',
+                        validateStatus: function (status) {
+                            return status >= 200 && status < 300;
+                        }
+                    });
+                    res.setHeader('Content-Type', file.mimeType);
+                    res.setHeader('Content-Disposition', `inline; filename="${file.originalName}"`);
+                    response.data.pipe(res);
+                }
+            } catch (streamError) {
+                logger.error('Error streaming file:', streamError);
+                res.status(500).json({
+                    error: 'Failed to stream file',
+                    success: false,
+                    message: 'Failed to stream file from storage',
+                    code: 500
+                });
             }
-
-            await whatsappService.sendMessage(to, content, type, mediaPath);
-            res.json({ success: true });
         } catch (error) {
-            console.error('Error in /send route:', error);
-            res.status(500).json({ error: 'Failed to send message' });
+            logger.error('Error viewing file:', error);
+            res.status(500).json({
+                error: error instanceof Error ? error.message : 'Failed to view file',
+                success: false,
+                message: 'Failed to view file',
+                code: 500
+            });
         }
     });
 
