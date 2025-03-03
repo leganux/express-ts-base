@@ -1,4 +1,4 @@
-import makeWASocket, { 
+import makeWASocket, {
     DisconnectReason,
     useMultiFileAuthState,
     makeInMemoryStore,
@@ -114,7 +114,7 @@ export class WhatsAppService {
         try {
             this.connectionState = 'connecting';
             const { state, saveCreds } = await useMultiFileAuthState(this.config.WHATSAPP_AUTH_FOLDER);
-            
+
             this.client = makeWASocket({
                 printQRInTerminal: true,
                 auth: state,
@@ -165,15 +165,15 @@ export class WhatsAppService {
             const msg = m.messages[0];
             if (!msg.key.fromMe && m.type === 'notify') {
                 let fileId: mongoose.Types.ObjectId | null = null;
-                
-                if (msg.message?.imageMessage || msg.message?.videoMessage || 
+
+                if (msg.message?.imageMessage || msg.message?.videoMessage ||
                     msg.message?.audioMessage || msg.message?.stickerMessage) {
                     let type = '';
                     if (msg.message.imageMessage) type = 'jpg';
                     else if (msg.message.videoMessage) type = 'mp4';
                     else if (msg.message.audioMessage) type = 'mp3';
                     else if (msg.message.stickerMessage) type = 'webp';
-                    
+
                     fileId = await this.saveMediaFromMessage(msg, type);
                 }
 
@@ -183,12 +183,12 @@ export class WhatsAppService {
                         messageId: msg.key.id,
                         from: jid,
                         type: Object.keys(msg.message || {})[0],
-                        content: msg.message?.conversation || 
-                                msg.message?.extendedTextMessage?.text || 
-                                (msg.message?.stickerMessage ? 'Sticker' : '') ||
-                                (msg.message?.imageMessage ? 'Image' : '') ||
-                                (msg.message?.videoMessage ? 'Video' : '') ||
-                                (msg.message?.audioMessage ? 'Audio' : '') || '',
+                        content: msg.message?.conversation ||
+                            msg.message?.extendedTextMessage?.text ||
+                            (msg.message?.stickerMessage ? 'Sticker' : '') ||
+                            (msg.message?.imageMessage ? 'Image' : '') ||
+                            (msg.message?.videoMessage ? 'Video' : '') ||
+                            (msg.message?.audioMessage ? 'Audio' : '') || '',
                         file: fileId,
                         timestamp: msg.messageTimestamp,
                     };
@@ -225,7 +225,7 @@ export class WhatsAppService {
                 { from: jid },
                 { from: 'me', to: jid }
             ]
-        }).populate('file').sort({ timestamp: 1 });
+        }).populate('file').sort({ createdAt: 1 });
     }
 
     async saveMedia(file: Express.Multer.File, type: string): Promise<mongoose.Types.ObjectId> {
@@ -281,7 +281,7 @@ export class WhatsAppService {
                     // If mediaPath is a direct path
                     fileBuffer = await this.storageService.getFileBuffer(mediaPath);
                 }
-                
+
                 switch (type) {
                     case 'image':
                         message = {
@@ -310,7 +310,7 @@ export class WhatsAppService {
 
             const fullJid = to.includes('@s.whatsapp.net') ? to : `${to}@s.whatsapp.net`;
             const result = await this.client.sendMessage(fullJid, message);
-            
+
             const messageData = {
                 messageId: result.key.id,
                 from: 'me',
@@ -331,7 +331,7 @@ export class WhatsAppService {
 
     async updateChatName(jid: string, name: string): Promise<void> {
         if (!this.client) throw new Error('WhatsApp client not initialized');
-        
+
         await WhatsAppChat.findOneAndUpdate(
             { jid },
             { name },
