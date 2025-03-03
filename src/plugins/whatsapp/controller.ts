@@ -233,28 +233,18 @@ export class WhatsAppController {
                 });
             }
 
-            // Save file and create file record
-            const savedFilePath = await this.service.saveMedia(file, type);
-            const fileDoc = await WhatsAppFileModel.create({
-                originalName: file.originalname,
-                fileName: file.filename,
-                path: savedFilePath,
-                mimeType: file.mimetype,
-                size: file.size
-            });
+            // Save file and get the file ID
+            const fileId = await this.service.saveMedia(file, type);
 
-            // Send message with the file
-            const message = await this.service.sendMessage(to, content || '', type, savedFilePath);
+            // Send message with the file ID
+            const message = await this.service.sendMessage(to, content || '', type, fileId.toString());
 
             return res.json({
                 error: null,
                 success: true,
                 message: 'Media message sent successfully',
                 code: 200,
-                data: {
-                    message,
-                    file: fileDoc
-                }
+                data: { message }
             });
         } catch (error) {
             logger.error('Error in sendMediaMessage:', error);

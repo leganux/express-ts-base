@@ -7,36 +7,45 @@ import makeWASocket, {
 import { Boom } from '@hapi/boom';
 import * as qrcode from 'qrcode-terminal';
 import path from 'path';
-import fs from 'fs/promises';
-import { PutObjectCommand } from '@aws-sdk/client-s3';
 import { WhatsAppMessage } from './models/message.model';
 import { WhatsAppChat } from './models/chat.model';
-import { WhatsAppFileModel } from './models/file.model';
+import { WhatsAppFileModel, IWhatsAppFile } from './models/file.model';
 import { validateWhatsappEnv, WhatsAppEnvConfig } from './validation/env';
 import { Express } from 'express';
 import { logger } from '../../utils/logger';
+import mongoose from 'mongoose';
+import { WhatsAppStorageService } from './storage.service';
 
 export class WhatsAppService {
     private static instance: WhatsAppService;
     private store = makeInMemoryStore({});
     private client: any = null;
     private currentQR: string | null = null;
-    private storageService: any;
+    private storageService: WhatsAppStorageService;
     private connectionState: 'connecting' | 'connected' | 'disconnected' = 'disconnected';
     private hasNewMessages: boolean = false;
     private config: WhatsAppEnvConfig;
 
-    private constructor(env: Record<string, any>, storageService: any) {
+    private constructor(env: Record<string, any>) {
         this.config = validateWhatsappEnv(env);
-        this.storageService = storageService;
+        this.storageService = WhatsAppStorageService.getInstance({
+            type: this.config.WHATSAPP_MEDIA_STORAGE_TYPE as 's3' | 'local',
+            uploadPath: this.config.WHATSAPP_UPLOAD_PATH,
+            s3: this.config.WHATSAPP_MEDIA_STORAGE_TYPE === 's3' ? {
+                bucket: env.AWS_S3_BUCKET,
+                region: env.AWS_REGION,
+                accessKeyId: env.AWS_ACCESS_KEY_ID,
+                secretAccessKey: env.AWS_SECRET_ACCESS_KEY
+            } : undefined
+        });
     }
 
-    public static getInstance(env?: Record<string, any>, storageService?: any): WhatsAppService {
+    public static getInstance(env?: Record<string, any>): WhatsAppService {
         if (!WhatsAppService.instance) {
-            if (!env || !storageService) {
-                throw new Error('Environment and storage service required for initialization');
+            if (!env) {
+                throw new Error('Environment required for initialization');
             }
-            WhatsAppService.instance = new WhatsAppService(env, storageService);
+            WhatsAppService.instance = new WhatsAppService(env);
         }
         return WhatsAppService.instance;
     }
@@ -61,27 +70,11 @@ export class WhatsAppService {
         this.hasNewMessages = value;
     }
 
-    private async ensureDirectoryExists(dirPath: string): Promise<void> {
-        try {
-            await fs.access(dirPath);
-        } catch {
-            await fs.mkdir(dirPath, { recursive: true });
-        }
-    }
-
-    private getYearMonthPath(): { year: string, month: string, fullPath: string } {
-        const now = new Date();
-        const year = now.getFullYear().toString();
-        const month = (now.getMonth() + 1).toString().padStart(2, '0');
-        const fullPath = path.join(this.config.WHATSAPP_UPLOAD_PATH, year, month);
-        return { year, month, fullPath };
-    }
-
-    private async saveMediaFromMessage(msg: any, type: string): Promise<string> {
+    private async saveMediaFromMessage(msg: any, type: string): Promise<mongoose.Types.ObjectId | null> {
         try {
             if (!msg) {
                 logger.warn('No message object provided');
-                return '';
+                return null;
             }
 
             try {
@@ -100,14 +93,20 @@ export class WhatsAppService {
                     stream: null as any
                 };
 
-                return await this.saveMedia(file, type);
+                try {
+                    const savedFile = await this.saveMedia(file, type);
+                    return savedFile as mongoose.Types.ObjectId;
+                } catch (saveError) {
+                    logger.error('Failed to save media:', saveError);
+                    return null;
+                }
             } catch (downloadError) {
                 logger.error('Failed to download media:', downloadError);
-                return '';
+                return null;
             }
         } catch (error) {
             logger.error('Error in saveMediaFromMessage:', error);
-            return '';
+            return null;
         }
     }
 
@@ -165,7 +164,7 @@ export class WhatsAppService {
         this.client.ev.on('messages.upsert', async (m: any) => {
             const msg = m.messages[0];
             if (!msg.key.fromMe && m.type === 'notify') {
-                let mediaUrl = '';
+                let fileId: mongoose.Types.ObjectId | null = null;
                 
                 if (msg.message?.imageMessage || msg.message?.videoMessage || 
                     msg.message?.audioMessage || msg.message?.stickerMessage) {
@@ -175,7 +174,7 @@ export class WhatsAppService {
                     else if (msg.message.audioMessage) type = 'mp3';
                     else if (msg.message.stickerMessage) type = 'webp';
                     
-                    mediaUrl = await this.saveMediaFromMessage(msg, type);
+                    fileId = await this.saveMediaFromMessage(msg, type);
                 }
 
                 try {
@@ -190,7 +189,7 @@ export class WhatsAppService {
                                 (msg.message?.imageMessage ? 'Image' : '') ||
                                 (msg.message?.videoMessage ? 'Video' : '') ||
                                 (msg.message?.audioMessage ? 'Audio' : '') || '',
-                        mediaUrl,
+                        file: fileId,
                         timestamp: msg.messageTimestamp,
                     };
 
@@ -226,40 +225,32 @@ export class WhatsAppService {
                 { from: jid },
                 { from: 'me', to: jid }
             ]
-        }).sort({ timestamp: 1 });
+        }).populate('file').sort({ timestamp: 1 });
     }
 
-    async saveMedia(file: Express.Multer.File, type: string): Promise<string> {
+    async saveMedia(file: Express.Multer.File, type: string): Promise<mongoose.Types.ObjectId> {
         try {
-            const { year, month } = this.getYearMonthPath();
-            const uuid = Date.now().toString();
-            const ext = path.extname(file.originalname);
-            const key = `uploads/whatsapp/${year}/${month}/${uuid}${ext}`;
+            const filePath = await this.storageService.saveFile(
+                file.buffer,
+                file.originalname,
+                file.mimetype
+            );
 
-            if (this.config.WHATSAPP_MEDIA_STORAGE_TYPE === 's3') {
-                await this.storageService.s3Client.send(new PutObjectCommand({
-                    Bucket: this.storageService.getS3Config().bucket,
-                    Key: key,
-                    Body: file.buffer,
-                    ContentType: file.mimetype
-                }));
-            } else {
-                const fullPath = path.join(this.config.WHATSAPP_UPLOAD_PATH, year, month);
-                await this.ensureDirectoryExists(fullPath);
-                await fs.writeFile(path.join(fullPath, path.basename(key)), file.buffer);
-            }
-
-            await WhatsAppFileModel.create({
+            const whatsappFile = await WhatsAppFileModel.create({
                 originalName: file.originalname,
-                path: key,
+                path: filePath,
                 mimeType: file.mimetype,
                 size: file.size
-            });
+            }) as IWhatsAppFile & { _id: mongoose.Types.ObjectId };
 
-            return key;
-        } catch (error) {
+            if (!whatsappFile._id) {
+                throw new Error('Failed to create file record: Invalid ObjectId');
+            }
+
+            return whatsappFile._id;
+        } catch (error: any) {
             logger.error('Error saving media:', error);
-            throw error;
+            throw new Error(`Failed to save media: ${error?.message || 'Unknown error'}`);
         }
     }
 
@@ -270,11 +261,26 @@ export class WhatsAppService {
 
         try {
             let message: any = {};
+            let fileId: mongoose.Types.ObjectId | null = null;
 
             if (type === 'text') {
                 message = { text: content };
             } else if (mediaPath) {
-                const fileBuffer = await fs.readFile(mediaPath);
+                let fileBuffer: Buffer;
+                let file: IWhatsAppFile | null = null;
+
+                if (mongoose.Types.ObjectId.isValid(mediaPath)) {
+                    // If mediaPath is a file ID, get the file from the database
+                    file = await WhatsAppFileModel.findById(mediaPath);
+                    if (!file) {
+                        throw new Error('File not found');
+                    }
+                    fileBuffer = await this.storageService.getFileBuffer(file.path);
+                    fileId = file._id;
+                } else {
+                    // If mediaPath is a direct path
+                    fileBuffer = await this.storageService.getFileBuffer(mediaPath);
+                }
                 
                 switch (type) {
                     case 'image':
@@ -311,11 +317,12 @@ export class WhatsAppService {
                 to: to.replace('@s.whatsapp.net', ''),
                 type,
                 content,
-                mediaUrl: mediaPath,
+                file: fileId,
                 timestamp: Date.now(),
             };
 
-            return await WhatsAppMessage.create(messageData);
+            const savedMessage = await WhatsAppMessage.create(messageData);
+            return savedMessage;
         } catch (error) {
             logger.error('Error sending message:', error);
             throw error;
@@ -333,9 +340,6 @@ export class WhatsAppService {
     }
 
     async getFileUrl(key: string): Promise<string> {
-        if (this.config.WHATSAPP_MEDIA_STORAGE_TYPE === 's3') {
-            return await this.storageService.getFileUrl(key);
-        }
-        return key;
+        return await this.storageService.getFileUrl(key);
     }
 }

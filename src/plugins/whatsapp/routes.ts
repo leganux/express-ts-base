@@ -29,17 +29,8 @@ export default function whatsappRoutes(service: any) {
     router.post('/send', (req, res) => controller.sendMessageHandler(req, res));
 
     // Send media message
-    router.post('/send-media', (req, res, next) => {
-        const storageService = service['storageService'];
-        if (!storageService) {
-            return res.status(503).json({ error: 'Storage service not initialized' });
-        }
-        storageService.upload.single('file')(req, res, async (err: any) => {
-            if (err) {
-                return res.status(400).json({ error: err.message });
-            }
-            controller.sendMediaMessageHandler(req, res);
-        });
+    router.post('/send-media', service.storageService.upload.single('file'), (req, res) => {
+        controller.sendMediaMessageHandler(req, res);
     });
 
     // View/download a file
@@ -53,7 +44,8 @@ export default function whatsappRoutes(service: any) {
                     error: 'File not found',
                     success: false,
                     message: 'The requested file does not exist',
-                    code: 404
+                    code: 404,
+                    data: {}
                 });
             }
 
@@ -69,7 +61,8 @@ export default function whatsappRoutes(service: any) {
                             error: 'Failed to read file',
                             success: false,
                             message: 'Failed to read file from storage',
-                            code: 500
+                            code: 500,
+                            data: {}
                         });
                     });
                     fileStream.pipe(res);
@@ -92,7 +85,8 @@ export default function whatsappRoutes(service: any) {
                     error: 'Failed to stream file',
                     success: false,
                     message: 'Failed to stream file from storage',
-                    code: 500
+                    code: 500,
+                    data: {}
                 });
             }
         } catch (error) {
@@ -101,7 +95,25 @@ export default function whatsappRoutes(service: any) {
                 error: error instanceof Error ? error.message : 'Failed to view file',
                 success: false,
                 message: 'Failed to view file',
-                code: 500
+                code: 500,
+                data: {}
+            });
+        }
+    });
+
+    // Serve static files
+    router.get('/uploads/*', async (req: any, res: Response) => {
+        try {
+            const filePath = path.join(service.config.WHATSAPP_UPLOAD_PATH, req.params[0]);
+            res.sendFile(filePath);
+        } catch (error) {
+            logger.error('Error serving static file:', error);
+            res.status(500).json({
+                error: 'Failed to serve file',
+                success: false,
+                message: 'Failed to serve file from storage',
+                code: 500,
+                data: {}
             });
         }
     });

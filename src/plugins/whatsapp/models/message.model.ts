@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { IWhatsAppFile } from './file.model';
 
 export interface IWhatsAppMessage {
   messageId: string;
@@ -6,7 +7,7 @@ export interface IWhatsAppMessage {
   to?: string;
   type: string;
   content: string;
-  mediaUrl?: string;
+  file?: mongoose.Types.ObjectId | IWhatsAppFile;
   timestamp: number;
   createdAt: Date;
   updatedAt: Date;
@@ -18,7 +19,7 @@ const WhatsAppMessageSchema = new mongoose.Schema<IWhatsAppMessage>({
   to: { type: String },
   type: { type: String, required: true },
   content: { type: String, default: '' },
-  mediaUrl: { type: String },
+  file: { type: mongoose.Schema.Types.ObjectId, ref: 'WhatsAppFile' },
   timestamp: { type: Number, required: true },
 }, {
   timestamps: true,
