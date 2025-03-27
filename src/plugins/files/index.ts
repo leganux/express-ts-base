@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger';
 import routes from './routes';
 import { v4 as uuidv4 } from 'uuid';
 import { FileModel, IFile } from './models/file.model';
+import config from '../config.json';
 
 export class StorageService {
   private s3Client: S3Client | null;
@@ -96,7 +97,7 @@ export class StorageService {
       Key: key,
     });
 
-    return await getSignedUrl(this.s3Client, command, { expiresIn: 3600 }); // URL expires in 1 hour
+    return await getSignedUrl(this.s3Client as any, command, { expiresIn: 3600 }); // URL expires in 1 hour
   }
 
   private async uploadToS3(file: Express.Multer.File): Promise<{ url: string; key: string }> {
@@ -253,10 +254,16 @@ export class StorageService {
 
 class FilesPlugin implements IPlugin {
   name = 'files';
-  version = '1.0.0';
+  version = config.files.version;
 
   async initialize(app: Express, mongoose: typeof import("mongoose")) {
     try {
+      // Check if plugin is enabled in config
+      if (!config.files.enabled) {
+        logger.info('Files plugin is disabled');
+        return;
+      }
+
       // Initialize MongoDB connection if not already connected
       if (mongoose.connection.readyState === 0) {
         await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/express-ts-base');
@@ -272,7 +279,10 @@ class FilesPlugin implements IPlugin {
       }
 
       app.locals.storageService = storageService;
-      app.use('/api/v1/files', routes);
+
+      // Register routes using path from config
+      const routePath = config.files.config.routes;
+      app.use(routePath, routes);
 
       logger.info('Files plugin initialized successfully');
     } catch (error) {

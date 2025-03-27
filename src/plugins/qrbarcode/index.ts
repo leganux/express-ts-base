@@ -7,47 +7,46 @@ import { Express } from 'express';
 import mongoose from 'mongoose';
 import { Code } from './models/code.model';
 import { logger } from '../../utils/logger';
+import config from '../config.json';
 
-export class QRBarcodePlugin implements IPlugin {
-    private router: Router;
-    
+// Define routes in a separate function to match other plugins
+const setupRoutes = (plugin: QRBarcodePlugin) => {
+    const router = Router();
+
+    router.post('/qr', async (req, res) => {
+        try {
+            const { text } = req.body;
+            if (!text) {
+                return res.status(400).json({ error: 'Text is required' });
+            }
+            const qrCode = await plugin.generateQR(text);
+            res.json({ data: qrCode });
+        } catch (error) {
+            res.status(500).json({ error: 'Error generating QR code' });
+        }
+    });
+
+    router.post('/barcode', async (req, res) => {
+        try {
+            const { text } = req.body;
+            if (!text) {
+                return res.status(400).json({ error: 'Text is required' });
+            }
+            const barcode = await plugin.generateBarcode(text);
+            res.json({ data: barcode });
+        } catch (error) {
+            res.status(500).json({ error: 'Error generating barcode' });
+        }
+    });
+
+    return router;
+};
+
+export class QRBarcodePlugin implements IPlugin {    
     name = 'qrbarcode';
-    version = '1.0.0';
+    version = config.qrbarcode.version;
 
-    constructor() {
-        this.router = Router();
-        this.setupRoutes();
-    }
-
-    private setupRoutes() {
-        this.router.post('/qr', async (req, res) => {
-            try {
-                const { text } = req.body;
-                if (!text) {
-                    return res.status(400).json({ error: 'Text is required' });
-                }
-                const qrCode = await this.generateQR(text);
-                res.json({ data: qrCode });
-            } catch (error) {
-                res.status(500).json({ error: 'Error generating QR code' });
-            }
-        });
-
-        this.router.post('/barcode', async (req, res) => {
-            try {
-                const { text } = req.body;
-                if (!text) {
-                    return res.status(400).json({ error: 'Text is required' });
-                }
-                const barcode = await this.generateBarcode(text);
-                res.json({ data: barcode });
-            } catch (error) {
-                res.status(500).json({ error: 'Error generating barcode' });
-            }
-        });
-    }
-
-    private async generateQR(text: string): Promise<string> {
+    async generateQR(text: string): Promise<string> {
         try {
             const qrCode = await QRCode.toDataURL(text);
             // Save to database
@@ -63,7 +62,7 @@ export class QRBarcodePlugin implements IPlugin {
         }
     }
 
-    private async generateBarcode(text: string): Promise<string> {
+    async generateBarcode(text: string): Promise<string> {
         try {
             const canvas = createCanvas(400, 100);
             JsBarcode(canvas, text, {
@@ -88,7 +87,16 @@ export class QRBarcodePlugin implements IPlugin {
     }
 
     async initialize(app: Express): Promise<void> {
-        app.use('/qrbarcode', this.router);
+        // Check if plugin is enabled in config
+        if (!config.qrbarcode.enabled) {
+            logger.info('QR/Barcode plugin is disabled');
+            return;
+        }
+
+        // Register routes using path from config
+        const routePath = config.qrbarcode.config.routes;
+        app.use(routePath, setupRoutes(this));
+
         logger.info('QR/Barcode plugin initialized successfully');
     }
 }

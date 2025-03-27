@@ -2,9 +2,9 @@
   "enviacom": {
     "name": "enviacom",
     "version": "1.0.0",
-    "enabled": false,
+    "enabled": true,
     "config": {
-      "routes": "/api/enviacom"
+      "routes": "/api/v1/enviacom"
     }
   },
   "skydropx": {
@@ -12,7 +12,7 @@
     "version": "1.0.0",
     "enabled": true,
     "config": {
-      "routes": "/api/skydropx"
+      "routes": "/api/v1/skydropx"
     }
   },
   "stripe": {
@@ -20,13 +20,13 @@
     "version": "1.0.0",
     "enabled": true,
     "config": {
-      "routes": "/api/stripe"
+      "routes": "/api/v1/stripe"
     }
   },
   "whatsapp": {
     "name": "whatsapp",
     "version": "1.0.0",
-    "enabled": true,
+    "enabled": false,
     "config": {
       "routes": "/api/v1/whatsapp"
     }
@@ -37,7 +37,7 @@
     "enabled": true,
     "config": {
       "sandbox": true,
-      "routes": "/api/openpay"
+      "routes": "/api/v1/openpay"
     }
   },
   "mercadopago": {
@@ -46,7 +46,7 @@
     "enabled": true,
     "config": {
       "sandbox": true,
-      "routes": "/api/mercadopago"
+      "routes": "/api/v1/mercadopago"
     }
   },
   "email": {
@@ -63,6 +63,22 @@
     "enabled": true,
     "config": {
       "routes": "/api/v1/files"
+    }
+  },
+  "facturama": {
+    "name": "facturama",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "routes": "/api/v1/facturama"
+    }
+  },
+  "qrbarcode": {
+    "name": "qrbarcode",
+    "version": "1.0.0",
+    "enabled": true,
+    "config": {
+      "routes": "/api/v1/qrbarcode"
     }
   }
 }

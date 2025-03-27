@@ -37,13 +37,15 @@ export interface EnviaPackage {
 
 import { Express } from 'express';
 import { IPlugin } from '../../types/plugin';
+import routes from './routes';
+import config from '../config.json';
 
 export class EnviacomPlugin implements IPlugin {
     private client!: AxiosInstance;
     private readonly baseURL = 'https://api.envia.com/ship/v1';
     
     name = 'enviacom';
-    version = '1.0.0';
+    version = config.enviacom.version;
 
     constructor(private apiKey?: string) {
         if (apiKey) {
@@ -62,10 +64,21 @@ export class EnviacomPlugin implements IPlugin {
     }
 
     async initialize(app: Express): Promise<void> {
+        // Check if plugin is enabled in config
+        if (!config.enviacom.enabled) {
+            logger.info('Enviacom plugin is disabled');
+            return;
+        }
+
         if (!this.apiKey) {
             throw new Error('API key is required for Enviacom plugin');
         }
         this.initializeClient(this.apiKey);
+
+        // Register routes using path from config
+        const routePath = config.enviacom.config.routes;
+        app.use(routePath, routes);
+
         logger.info('Enviacom plugin initialized successfully');
     }
 

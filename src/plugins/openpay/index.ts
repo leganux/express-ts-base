@@ -2,6 +2,8 @@ import { Express, Request, Response } from 'express';
 import mongoose from 'mongoose';
 import { IPaymentPlugin } from '../../types/plugin';
 import { logger } from '../../utils/logger';
+import routes from './routes';
+import config from '../config.json';
 import { OpenPayPayment, IPayment } from './payment.model';
 import { OpenPaySubscription, ISubscription } from './models/subscription.model';
 import { OpenPayProduct, IProduct, IPrice } from './models/product.model';
@@ -10,7 +12,7 @@ import { OpenPayWebhookEvent } from './models/webhook-event.model';
 
 class OpenPayPlugin implements IPaymentPlugin {
   name = 'openpay';
-  version = '1.0.0';
+  version = config.openpay.version;
   private merchantId?: string;
   private privateKey?: string;
   private isSandbox: boolean = true;
@@ -19,6 +21,12 @@ class OpenPayPlugin implements IPaymentPlugin {
   private subscriptionCronJob?: ReturnType<typeof setInterval>;
 
   async initialize(app: Express, mongoose: mongoose.Mongoose): Promise<void> {
+    // Check if plugin is enabled in config
+    if (!config.openpay.enabled) {
+      logger.info('OpenPay plugin is disabled');
+      return;
+    }
+
     this.merchantId = process.env.OPENPAY_MERCHANT_ID;
     this.privateKey = process.env.OPENPAY_PRIVATE_KEY;
     this.isSandbox = process.env.OPENPAY_SANDBOX === 'true';
@@ -28,10 +36,12 @@ class OpenPayPlugin implements IPaymentPlugin {
       return;
     }
 
+    // Register routes using path from config
+    const routePath = config.openpay.config.routes;
+    app.use(routePath, routes());
+
     logger.info(`OpenPay plugin initialized in ${this.isSandbox ? 'sandbox' : 'production'} mode`);
 
-    // Setup webhook endpoint
-    app.post('/api/v1/payments/openpay/webhook', this.handleWebhook.bind(this));
 
     // Start cron jobs for payment and subscription status checks
     this.startCronJob();
@@ -60,24 +70,24 @@ class OpenPayPlugin implements IPaymentPlugin {
       try {
         // Process the webhook event
         switch (event.type) {
-        case 'charge.succeeded':
-          await this.updatePaymentStatus(event.transaction.id, 'completed', event);
-          break;
-        case 'charge.failed':
-          await this.updatePaymentStatus(event.transaction.id, 'failed', event);
-          break;
-        case 'subscription.created':
-          await this.handleSubscriptionCreated(event);
-          break;
-        case 'subscription.updated':
-          await this.handleSubscriptionUpdated(event);
-          break;
-        case 'subscription.cancelled':
-          await this.handleSubscriptionCancelled(event);
-          break;
-        default:
-          logger.info(`Unhandled webhook event type: ${event.type}`);
-      }
+          case 'charge.succeeded':
+            await this.updatePaymentStatus(event.transaction.id, 'completed', event);
+            break;
+          case 'charge.failed':
+            await this.updatePaymentStatus(event.transaction.id, 'failed', event);
+            break;
+          case 'subscription.created':
+            await this.handleSubscriptionCreated(event);
+            break;
+          case 'subscription.updated':
+            await this.handleSubscriptionUpdated(event);
+            break;
+          case 'subscription.cancelled':
+            await this.handleSubscriptionCancelled(event);
+            break;
+          default:
+            logger.info(`Unhandled webhook event type: ${event.type}`);
+        }
 
         // Mark webhook as processed
         await OpenPayWebhookEvent.findByIdAndUpdate(webhookEvent._id, {
@@ -107,7 +117,7 @@ class OpenPayPlugin implements IPaymentPlugin {
     try {
       await OpenPayPayment.findOneAndUpdate(
         { transactionId },
-        { 
+        {
           status,
           ...(metadata && { metadata })
         },
@@ -122,11 +132,11 @@ class OpenPayPlugin implements IPaymentPlugin {
   private startCronJob(): void {
     // Run every hour
     const HOUR_IN_MS = 60 * 60 * 1000;
-    
+
     this.cronJob = setInterval(async () => {
       try {
         logger.info('Running OpenPay payment status check cron job');
-        
+
         // Find all pending payments older than 5 minutes
         const pendingPayments = await OpenPayPayment.find({
           status: 'pending',
@@ -170,7 +180,7 @@ class OpenPayPlugin implements IPaymentPlugin {
       // Here would go the actual OpenPay API integration
       // This is a mock implementation
       logger.info(`Processing OpenPay payment: ${amount} ${currency}`);
-      
+
       const transactionId = `op_${Date.now()}`;
 
       // Create payment record
@@ -229,11 +239,11 @@ class OpenPayPlugin implements IPaymentPlugin {
   private startSubscriptionCronJob(): void {
     // Run every day
     const DAY_IN_MS = 24 * 60 * 60 * 1000;
-    
+
     this.subscriptionCronJob = setInterval(async () => {
       try {
         logger.info('Running OpenPay subscription check cron job');
-        
+
         // Find all active subscriptions
         const activeSubscriptions = await OpenPaySubscription.find({
           status: 'active',
@@ -355,7 +365,7 @@ class OpenPayPlugin implements IPaymentPlugin {
       // Here would go the actual OpenPay API subscription creation
       // This is a mock implementation
       logger.info(`Creating OpenPay subscription for customer ${customerId}`);
-      
+
       const subscriptionId = `ops_${Date.now()}`;
 
       await OpenPaySubscription.create({
@@ -443,7 +453,7 @@ class OpenPayPlugin implements IPaymentPlugin {
       // Here would go the actual OpenPay API product creation
       // This is a mock implementation
       logger.info(`Creating OpenPay product: ${name}`);
-      
+
       const productId = `opp_${Date.now()}`;
 
       await OpenPayProduct.create({
@@ -490,7 +500,7 @@ class OpenPayPlugin implements IPaymentPlugin {
       // Here would go the actual OpenPay API price creation
       // This is a mock implementation
       logger.info(`Creating OpenPay price for product ${productId}`);
-      
+
       const priceId = `opr_${Date.now()}`;
       const price: IPrice = {
         priceId,
@@ -532,6 +542,8 @@ class OpenPayPlugin implements IPaymentPlugin {
   async listProducts(active?: boolean): Promise<IProduct[]> {
     try {
       const query = active !== undefined ? { active } : {};
+      console.log('************', query);
+
       return await OpenPayProduct.find(query);
     } catch (error) {
       logger.error('Error listing products:', error);
@@ -557,7 +569,7 @@ class OpenPayPlugin implements IPaymentPlugin {
       // Here would go the actual OpenPay API customer creation
       // This is a mock implementation
       logger.info(`Creating OpenPay customer: ${email}`);
-      
+
       const customerId = `opc_${Date.now()}`;
 
       await OpenPayCustomer.create({

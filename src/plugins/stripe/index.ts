@@ -8,12 +8,14 @@ import { StripeWebhookEvent } from './models/webhook-event.model';
 
 import { Express } from 'express';
 import { IPlugin } from '../../types/plugin';
+import routes from './routes';
+import config from '../config.json';
 
 export class StripePlugin implements IPlugin {
     private stripe!: Stripe;
     
     name = 'stripe';
-    version = '1.0.0';
+    version = config.stripe.version;
 
     constructor(private apiKey?: string) {
         if (apiKey) {
@@ -23,15 +25,26 @@ export class StripePlugin implements IPlugin {
 
     private initializeStripe(apiKey: string) {
         this.stripe = new Stripe(apiKey, {
-            apiVersion: '2025-01-27.acacia',
+            apiVersion: '2025-02-24.acacia',
         });
     }
 
     async initialize(app: Express): Promise<void> {
+        // Check if plugin is enabled in config
+        if (!config.stripe.enabled) {
+            logger.info('Stripe plugin is disabled');
+            return;
+        }
+
         if (!this.apiKey) {
             throw new Error('API key is required for Stripe plugin');
         }
         this.initializeStripe(this.apiKey);
+
+        // Register routes using path from config
+        const routePath = config.stripe.config.routes;
+        app.use(routePath, routes);
+
         logger.info('Stripe plugin initialized successfully');
     }
 

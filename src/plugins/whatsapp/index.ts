@@ -4,20 +4,27 @@ import { logger } from '../../utils/logger';
 import { WhatsAppService } from './service';
 import whatsappRoutes from './routes';
 import fs from 'fs/promises';
+import config from '../config.json';
 
 class WhatsAppPlugin implements IPlugin {
     name = 'whatsapp';
-    version = '1.0.0';
+    version = config.whatsapp.version;
 
     async initialize(app: Express, mongoose: typeof import("mongoose")) {
         try {
+            // Check if plugin is enabled in config
+            if (!config.whatsapp.enabled) {
+                logger.info('WhatsApp plugin is disabled');
+                return;
+            }
+
             // Initialize MongoDB connection if not already connected
             if (mongoose.connection.readyState === 0) {
                 await mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/express-ts-base');
             }
 
             // Initialize WhatsApp service with validated environment
-            const whatsappService = WhatsAppService.getInstance(process.env, app.locals.storageService);
+            const whatsappService = WhatsAppService.getInstance(process.env);
 
             // Create upload directory if using local storage
             if (process.env.WHATSAPP_MEDIA_STORAGE_TYPE !== 's3') {
@@ -34,8 +41,9 @@ class WhatsAppPlugin implements IPlugin {
             // Connect to WhatsApp
             await whatsappService.connect();
 
-            // Set up routes
-            app.use('/api/v1/whatsapp', whatsappRoutes(whatsappService));
+            // Set up routes using path from config
+            const routePath = config.whatsapp.config.routes;
+            app.use(routePath, whatsappRoutes(whatsappService));
 
             logger.info('WhatsApp plugin initialized successfully');
         } catch (error) {

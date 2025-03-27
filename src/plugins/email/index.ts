@@ -7,6 +7,7 @@ import { logger } from '../../utils/logger';
 import path from 'path';
 import fs from 'fs/promises';
 import routes from './routes';
+import config from '../config.json';
 
 // Base email template
 const baseTemplate = `
@@ -208,12 +209,23 @@ class EmailService {
 
 class EmailPlugin implements IPlugin {
   name = 'email';
-  version = '1.0.0';
+  version = config.email.version;
 
   async initialize(app: Express, mongoose: typeof import("mongoose")) {
+    // Check if plugin is enabled in config
+    if (!config.email.enabled) {
+      logger.info('Email plugin is disabled');
+      return;
+    }
+
     const emailService = new EmailService(process.env);
     app.locals.emailService = emailService;
-    app.use('/api/v1/email', routes);
+
+    // Register routes using path from config
+    const routePath = config.email.config.routes;
+    app.use(routePath, routes);
+
+    logger.info('Email plugin initialized successfully');
   }
 }
 

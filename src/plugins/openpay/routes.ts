@@ -2,12 +2,15 @@ import { Router } from 'express';
 import { validateEnv } from '../../config/env.validator';
 import OpenPayPlugin from './index';
 import { raw } from 'body-parser';
+import { logger } from '../../utils/logger';
+import { log } from 'console';
 
 const config = validateEnv();
 
 export default function openPayRoutes() {
     const router = Router();
     const openPay = new OpenPayPlugin();
+
 
     // Customers
     router.post('/customers', async (req, res) => {
@@ -96,6 +99,7 @@ export default function openPayRoutes() {
     router.get('/products', async (req, res) => {
         try {
             const active = req.query.active === 'true';
+            console.log(active);
             const products = await openPay.listProducts(active);
             res.json(products);
         } catch (error) {

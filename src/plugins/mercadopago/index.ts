@@ -3,16 +3,23 @@ import mongoose from 'mongoose';
 import { IPaymentPlugin } from '../../types/plugin';
 import { logger } from '../../utils/logger';
 import { MercadoPagoPayment, IPayment } from './payment.model';
+import config from '../config.json';
 
 class MercadoPagoPlugin implements IPaymentPlugin {
   name = 'mercadopago';
-  version = '1.0.0';
+  version = config.mercadopago.version;
   private accessToken?: string;
   private isSandbox: boolean = true;
 
   private cronJob?: ReturnType<typeof setInterval>;
 
   async initialize(app: Express, mongoose: mongoose.Mongoose): Promise<void> {
+    // Check if plugin is enabled in config
+    if (!config.mercadopago.enabled) {
+      logger.info('MercadoPago plugin is disabled');
+      return;
+    }
+
     this.accessToken = process.env.MERCADOPAGO_ACCESS_TOKEN;
     this.isSandbox = process.env.MERCADOPAGO_SANDBOX === 'true';
 
@@ -21,10 +28,11 @@ class MercadoPagoPlugin implements IPaymentPlugin {
       return;
     }
 
-    logger.info(`MercadoPago plugin initialized in ${this.isSandbox ? 'sandbox' : 'production'} mode`);
+    // Setup webhook endpoint using path from config
+    const routePath = config.mercadopago.config.routes;
+    app.post(`${routePath}/webhook`, this.handleWebhook.bind(this));
 
-    // Setup webhook endpoint
-    app.post('/api/v1/payments/mercadopago/webhook', this.handleWebhook.bind(this));
+    logger.info(`MercadoPago plugin initialized in ${this.isSandbox ? 'sandbox' : 'production'} mode`);
 
     // Start cron job for payment status checks
     this.startCronJob();
